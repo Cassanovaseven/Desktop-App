@@ -22,7 +22,7 @@ beforeEach(() => {
     theme: { list: vi.fn(async () => themes), getActiveId: vi.fn(async () => 'alfonso-gelap'), setActive: vi.fn(async () => {}) },
     sidecar: { getStatus: vi.fn(async () => ({ state: 'ready' as const, port: 51234, message: null, restarts: 0 })), onStatus: vi.fn(() => () => {}) },
     layout: { load: vi.fn(async () => null), save: vi.fn(async () => {}) }
-  }
+  } as unknown as AlfonsoApi
   cmds = buildCommands({ themes, api, resetLayout, showMessage, applyThemeById })
 })
 afterEach(() => cleanup())
