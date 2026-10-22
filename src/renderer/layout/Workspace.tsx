@@ -1,25 +1,9 @@
 import { createContext, useContext, useEffect, useRef } from 'react'
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent, type IDockviewPanelProps } from 'dockview-react'
 import type { SidecarStatus } from '../../shared/types'
-import { restoreLayout } from './layout'
+import { restoreLayout, sidecarLabel } from './layout'
 
 const SidecarContext = createContext<SidecarStatus | null>(null)
-
-export function sidecarLabel(s: SidecarStatus | null): string {
-  if (!s) return 'Sidecar: memulai…'
-  switch (s.state) {
-    case 'ready':
-      return `Sidecar: siap (port ${s.port})`
-    case 'starting':
-      return 'Sidecar: memulai…'
-    case 'restarting':
-      return `Sidecar: memulai ulang… (percobaan ${s.restarts})`
-    case 'failed':
-      return `Sidecar: gagal — ${s.message ?? 'tidak diketahui'}`
-    case 'stopped':
-      return 'Sidecar: berhenti'
-  }
-}
 
 function Placeholder(props: IDockviewPanelProps<{ text?: string }>): React.JSX.Element {
   return <div className="panel-placeholder">{props.params.text}</div>

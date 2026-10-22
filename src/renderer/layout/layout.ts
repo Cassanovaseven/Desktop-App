@@ -1,4 +1,5 @@
 import type { DockviewApi } from 'dockview-react'
+import type { SidecarStatus } from '../../shared/types'
 
 export interface PanelDef {
   id: string
@@ -45,4 +46,20 @@ export function restoreLayout(api: DockviewApi, saved: string | null, log: (m: s
   }
   buildDefaultLayout(api)
   return 'default'
+}
+
+export function sidecarLabel(s: SidecarStatus | null): string {
+  if (!s) return 'Sidecar: memulai…'
+  switch (s.state) {
+    case 'ready':
+      return `Sidecar: siap (port ${s.port})`
+    case 'starting':
+      return 'Sidecar: memulai…'
+    case 'restarting':
+      return `Sidecar: memulai ulang… (percobaan ${s.restarts})`
+    case 'failed':
+      return `Sidecar: gagal — ${s.message ?? 'tidak diketahui'}`
+    case 'stopped':
+      return 'Sidecar: berhenti'
+  }
 }
