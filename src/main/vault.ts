@@ -54,3 +54,37 @@ export function writeVaultConfig(userDataDir: string, vaultPath: string): void {
   fs.mkdirSync(userDataDir, { recursive: true })
   fs.writeFileSync(path.join(userDataDir, CONFIG_FILE), JSON.stringify({ vaultPath }, null, 2), 'utf8')
 }
+
+export const MSG_NOT_WRITABLE = 'Folder ini tidak bisa ditulisi. Pilih folder lain.'
+
+export interface ResolveVaultDeps {
+  env: NodeJS.ProcessEnv
+  userDataDir: string
+  ask: () => Promise<string | null>
+  notify: (msg: string) => Promise<void>
+}
+
+// Urutan: env ALFONSO_VAULT, config tersimpan, lalu tanya pengguna sampai dapat folder yang bisa ditulisi.
+export async function resolveVaultPath(deps: ResolveVaultDeps): Promise<VaultPaths | null> {
+  const known = deps.env.ALFONSO_VAULT || readVaultConfig(deps.userDataDir)?.vaultPath
+  if (known) {
+    try {
+      return ensureVault(known)
+    } catch (err) {
+      if (!(err instanceof VaultNotWritableError)) throw err
+      await deps.notify(MSG_NOT_WRITABLE)
+    }
+  }
+  for (;;) {
+    const picked = await deps.ask()
+    if (picked === null) return null
+    try {
+      const paths = ensureVault(picked)
+      writeVaultConfig(deps.userDataDir, picked)
+      return paths
+    } catch (err) {
+      if (!(err instanceof VaultNotWritableError)) throw err
+      await deps.notify(MSG_NOT_WRITABLE)
+    }
+  }
+}

@@ -11,7 +11,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["node", "electron-vite/node"]
+    "types": ["node", "vite/client"]
   },
   "include": ["src/**/*", "tests/**/*", "e2e/**/*", "*.config.ts"]
 }

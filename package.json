@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "postinstall": "install-electron && electron-builder install-app-deps",
-    "sidecar:setup": "py -3.12 -m venv sidecar\\.venv && sidecar\\.venv\\Scripts\\python -m pip install -r sidecar\\requirements.txt"
+    "sidecar:setup": "py -3.12 -m venv sidecar\\.venv && sidecar\\.venv\\Scripts\\python -m pip install -r sidecar\\requirements.txt",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/better-sqlite3": "9.6.0",

@@ -1,4 +1,4 @@
-import { test, expect, beforeEach, afterEach, vi } from 'vitest'
+import { test, expect, beforeEach, afterEach, vi, type Mock } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -10,7 +10,8 @@ import { validateTheme, loadThemes, resolveActiveThemeId } from '../../src/main/
 
 const gelap = gelapJson as ThemeTokens
 let modsDir: string
-let log: { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> }
+type LogFn = (msg: string) => void
+let log: { info: Mock<LogFn>; warn: Mock<LogFn>; error: Mock<LogFn> }
 
 function writeMod(dir: string, id: string, manifest: Record<string, unknown>, theme: unknown): void {
   const d = path.join(dir, id)
@@ -21,7 +22,7 @@ function writeMod(dir: string, id: string, manifest: Record<string, unknown>, th
 
 beforeEach(() => {
   modsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'alfonso-mods-'))
-  log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+  log = { info: vi.fn<LogFn>(), warn: vi.fn<LogFn>(), error: vi.fn<LogFn>() }
 })
 afterEach(() => { fs.rmSync(modsDir, { recursive: true, force: true }) })
 
