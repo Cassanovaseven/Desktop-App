@@ -2,10 +2,13 @@ import { createContext, useContext, useEffect, useRef } from 'react'
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent, type IDockviewPanelProps } from 'dockview-react'
 import type { SidecarStatus } from '../../shared/types'
 import { restoreLayout, sidecarLabel } from './layout'
+import { Board } from '../board/Board'
 
 const SidecarContext = createContext<SidecarStatus | null>(null)
 
 function Placeholder(props: IDockviewPanelProps<{ text?: string }>): React.JSX.Element {
+  // Tata letak tersimpan dari Fase 0 masih memakai komponen placeholder untuk panel Board.
+  if (props.api.id === 'board') return <Board />
   return <div className="panel-placeholder">{props.params.text}</div>
 }
 
@@ -18,7 +21,7 @@ function QueuePanel(): React.JSX.Element {
   )
 }
 
-const components = { placeholder: Placeholder, queue: QueuePanel }
+const components = { placeholder: Placeholder, queue: QueuePanel, board: () => <Board /> }
 const theme = { name: 'alfonso', className: 'dockview-theme-alfonso' }
 
 export function Workspace(props: { sidecar: SidecarStatus | null; onApi?: (api: DockviewApi) => void }): React.JSX.Element {

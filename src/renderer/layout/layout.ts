@@ -4,13 +4,13 @@ import type { SidecarStatus } from '../../shared/types'
 export interface PanelDef {
   id: string
   title: string
-  component: 'placeholder' | 'queue'
+  component: 'placeholder' | 'queue' | 'board'
   placeholder?: string
 }
 
 export const PANELS: PanelDef[] = [
   { id: 'explorer', title: 'Proyek', component: 'placeholder', placeholder: 'Segera hadir — Fase 2' },
-  { id: 'board', title: 'Board', component: 'placeholder', placeholder: 'Segera hadir — Fase 1' },
+  { id: 'board', title: 'Board', component: 'board' },
   { id: 'studio', title: 'Studio', component: 'placeholder', placeholder: 'Segera hadir — Fase 3' },
   { id: 'deck', title: 'Deck', component: 'placeholder', placeholder: 'Segera hadir — Fase 4' },
   { id: 'inspector', title: 'Inspector', component: 'placeholder', placeholder: 'Segera hadir — Fase 1' },

@@ -6,11 +6,14 @@ import { Workspace } from './layout/Workspace'
 import { buildDefaultLayout } from './layout/layout'
 import { CommandPalette } from './palette/CommandPalette'
 import { buildCommands } from './palette/commands'
+import { SearchBox } from './search/SearchBox'
+import { boardController } from './board/Board'
 
 export default function App(): React.JSX.Element {
   const [sidecar, setSidecar] = useState<SidecarStatus | null>(null)
   const [themes, setThemes] = useState<ThemeTokens[]>([])
   const [message, setMessage] = useState<string | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
   const dockApi = useRef<DockviewApi | null>(null)
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -46,7 +49,9 @@ export default function App(): React.JSX.Element {
           if (!t) return
           applyTheme(t)
           void window.alfonso.theme.setActive(id)
-        }
+        },
+        addNote: () => boardController.addNote(),
+        openSearch: () => setSearchOpen(true)
       }),
     [themes]
   )
@@ -55,6 +60,9 @@ export default function App(): React.JSX.Element {
     <div className="app">
       <Workspace sidecar={sidecar} onApi={(api) => (dockApi.current = api)} />
       <CommandPalette commands={commands} />
+      {searchOpen && (
+        <SearchBox query={window.alfonso.search.query} onPick={boardController.focusCard} onClose={() => setSearchOpen(false)} />
+      )}
       {message && (
         <div className="toast" role="status">
           {message}

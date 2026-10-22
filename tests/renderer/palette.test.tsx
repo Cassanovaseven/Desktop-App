@@ -12,24 +12,26 @@ const themes = [gelapJson, terangJson] as ThemeTokens[]
 let applyThemeById: ReturnType<typeof vi.fn<(id: string) => void>>
 let showMessage: ReturnType<typeof vi.fn<(m: string) => void>>
 let resetLayout: ReturnType<typeof vi.fn<() => void>>
+let addNote: ReturnType<typeof vi.fn<() => void>>
+let openSearch: ReturnType<typeof vi.fn<() => void>>
 let api: AlfonsoApi
 let cmds: Command[]
 
 beforeEach(() => {
-  applyThemeById = vi.fn(); showMessage = vi.fn(); resetLayout = vi.fn()
+  applyThemeById = vi.fn(); showMessage = vi.fn(); resetLayout = vi.fn(); addNote = vi.fn(); openSearch = vi.fn()
   api = {
     vault: { getPath: vi.fn(async () => 'C:/Vault'), openFolder: vi.fn(async () => {}) },
     theme: { list: vi.fn(async () => themes), getActiveId: vi.fn(async () => 'alfonso-gelap'), setActive: vi.fn(async () => {}) },
     sidecar: { getStatus: vi.fn(async () => ({ state: 'ready' as const, port: 51234, message: null, restarts: 0 })), onStatus: vi.fn(() => () => {}) },
     layout: { load: vi.fn(async () => null), save: vi.fn(async () => {}) }
   } as unknown as AlfonsoApi
-  cmds = buildCommands({ themes, api, resetLayout, showMessage, applyThemeById })
+  cmds = buildCommands({ themes, api, resetLayout, showMessage, applyThemeById, addNote, openSearch })
 })
 afterEach(() => cleanup())
 
 test('daftar perintah lengkap', () => {
-  expect(cmds.map(c => c.id)).toEqual(['theme.switch:alfonso-gelap', 'theme.switch:alfonso-terang', 'vault.open', 'sidecar.status', 'layout.reset'])
-  expect(cmds[1].label).toBe('Ganti tema: Alfonso Terang')
+  expect(cmds.map(c => c.id)).toEqual(['board.addNote', 'search.files', 'theme.switch:alfonso-gelap', 'theme.switch:alfonso-terang', 'vault.open', 'sidecar.status', 'layout.reset'])
+  expect(cmds[3].label).toBe('Ganti tema: Alfonso Terang')
 })
 test('filter tidak peka huruf dan per kata', () => {
   const r = filterCommands(cmds, 'tema TERANG')
@@ -62,4 +64,8 @@ test('status sidecar dan buka vault', async () => {
   expect(api.vault.openFolder).toHaveBeenCalled()
   cmds.find(c => c.id === 'layout.reset')!.run()
   expect(resetLayout).toHaveBeenCalled()
+})
+test('Tambah catatan dan Cari isi file memanggil konteks', () => {
+  cmds.find(c => c.id === 'board.addNote')!.run(); cmds.find(c => c.id === 'search.files')!.run()
+  expect(addNote).toHaveBeenCalled(); expect(openSearch).toHaveBeenCalled()
 })

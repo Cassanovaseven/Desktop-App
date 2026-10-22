@@ -1,4 +1,5 @@
 import 'dockview-react/dist/styles/dockview.css'
+import '@xyflow/react/dist/style.css'
 import './main.css'
 
 import { StrictMode } from 'react'

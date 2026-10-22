@@ -13,10 +13,14 @@ export interface CommandContext {
   resetLayout(): void
   showMessage(m: string): void
   applyThemeById(id: string): void
+  addNote(): void
+  openSearch(): void
 }
 
 export function buildCommands(ctx: CommandContext): Command[] {
   return [
+    { id: 'board.addNote', label: 'Tambah catatan', run: () => ctx.addNote() },
+    { id: 'search.files', label: 'Cari isi file…', run: () => ctx.openSearch() },
     ...ctx.themes.map((t) => ({
       id: `theme.switch:${t.id}`,
       label: `Ganti tema: ${t.name}`,
