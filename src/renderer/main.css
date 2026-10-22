@@ -1,0 +1,59 @@
+html,
+body,
+#root,
+.app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+}
+
+/* Warna dockview diambil dari variabel tema; tidak ada warna tertulis langsung. */
+.dockview-theme-alfonso {
+  --dv-group-view-background-color: var(--color-surface);
+  --dv-tabs-and-actions-container-background-color: var(--color-surface-alt);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--color-surface);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--color-surface-alt);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--color-surface);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--color-surface-alt);
+  --dv-activegroup-visiblepanel-tab-color: var(--color-text);
+  --dv-activegroup-hiddenpanel-tab-color: var(--color-text-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--color-text-muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--color-text-muted);
+  --dv-tab-divider-color: var(--color-border);
+  --dv-separator-border: var(--color-border);
+  --dv-paneview-header-border-color: var(--color-border);
+  --dv-active-sash-color: var(--color-accent);
+  --dv-drag-over-background-color: var(--color-surface-alt);
+  --dv-drag-over-border-color: var(--color-accent);
+  --dv-icon-hover-background-color: var(--color-surface-alt);
+  --dv-floating-box-shadow: var(--shadow-md);
+  --dv-border-radius: var(--radius-sm);
+  --dv-transition-duration: var(--motion-duration-fast);
+  font-family: var(--font-family);
+  height: 100%;
+}
+
+.panel-placeholder,
+.panel-queue {
+  padding: var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.sidecar-ready {
+  color: var(--color-success);
+}
+
+.sidecar-failed {
+  color: var(--color-danger);
+}
+
+.sidecar-restarting,
+.sidecar-starting {
+  color: var(--color-warning);
+}

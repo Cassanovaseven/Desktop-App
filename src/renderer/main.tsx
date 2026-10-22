@@ -1,3 +1,6 @@
+import 'dockview-react/dist/styles/dockview.css'
+import './main.css'
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
