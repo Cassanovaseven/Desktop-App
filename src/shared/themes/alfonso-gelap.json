@@ -1,0 +1,27 @@
+{
+  "id": "alfonso-gelap",
+  "name": "Alfonso Gelap",
+  "mode": "dark",
+  "colors": {
+    "bg": "#16181c",
+    "surface": "#1e2126",
+    "surfaceAlt": "#262a30",
+    "border": "#353a42",
+    "text": "#e6e8eb",
+    "textMuted": "#9aa1ab",
+    "accent": "#4c8dff",
+    "accentText": "#ffffff",
+    "danger": "#f0616d",
+    "warning": "#e8b04a",
+    "success": "#4cc38a"
+  },
+  "typography": {
+    "fontFamily": "\"Segoe UI\", system-ui, sans-serif",
+    "fontFamilyMono": "\"Cascadia Code\", Consolas, monospace",
+    "fontSizeBase": "14px"
+  },
+  "radius": { "sm": "4px", "md": "6px", "lg": "10px" },
+  "spacing": { "1": "4px", "2": "8px", "3": "12px", "4": "16px", "6": "24px", "8": "32px" },
+  "shadow": { "sm": "0 1px 2px rgba(0, 0, 0, 0.4)", "md": "0 4px 12px rgba(0, 0, 0, 0.5)" },
+  "motion": { "durationFast": "120ms", "durationBase": "200ms", "easing": "cubic-bezier(0.2, 0, 0, 1)" }
+}
