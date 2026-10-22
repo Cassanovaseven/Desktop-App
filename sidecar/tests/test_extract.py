@@ -1,0 +1,107 @@
+import hashlib
+import shutil
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from alfonso_sidecar.app import create_app
+
+TOKEN = "t0k3n"
+H = {"X-Alfonso-Token": TOKEN}
+
+
+@pytest.fixture
+def client(vault: Path) -> TestClient:
+    return TestClient(create_app(TOKEN, vault_root=str(vault)))
+
+
+def extract(client: TestClient, rel: str, asset_id: str = "aset1"):
+    return client.post("/extract", headers=H, json={"path": rel, "asset_id": asset_id})
+
+
+def test_pdf(client, make):
+    r = extract(client, make("pdf"))
+    assert r.status_code == 200 and "pidana" in r.json()["text"]
+
+
+def test_pdf_rusak_422(client, make):
+    r = extract(client, make("pdf-rusak"))
+    assert r.status_code == 422 and r.json()["detail"] == "PDF rusak atau terenkripsi"
+
+
+def test_docx_teks_dan_heading(client, make):
+    j = extract(client, make("docx")).json()
+    assert "riset hukum" in j["text"] and j["meta"]["heading"] == ["Bab Satu"]
+
+
+def test_pptx(client, make):
+    j = extract(client, make("pptx")).json()
+    assert "Judul Slide" in j["text"] and "poin presentasi" in j["text"] and j["meta"]["slide"] == 1
+
+
+def test_xlsx(client, make):
+    j = extract(client, make("xlsx")).json()
+    assert "anggaran" in j["text"] and "1200" in j["text"]
+
+
+@pytest.mark.parametrize("kind,word", [("csv", "Bandung"), ("md", "kata kunci"), ("epub", "cerita panjang")])
+def test_teks(client, make, kind, word):
+    assert word in extract(client, make(kind)).json()["text"]
+
+
+def test_html_tanpa_tag_dan_script(client, make):
+    t = extract(client, make("html")).json()["text"]
+    assert "halo" in t and "dunia" in t and "<" not in t and "x=1" not in t
+
+
+def test_kode_dengan_bahasa(client, make):
+    j = extract(client, make("py")).json()
+    assert "def halo" in j["text"] and j["meta"]["bahasa"] == "python"
+
+
+def test_gambar_thumbnail_dan_warna(client, make, vault):
+    rel = make("png")
+    before = hashlib.sha256((vault / rel).read_bytes()).hexdigest()
+    j = extract(client, rel, "aset-gbr").json()
+    assert j["thumb"] == "thumbs/aset-gbr.webp" and (vault / "thumbs" / "aset-gbr.webp").exists()
+    assert j["meta"]["warna"].startswith("#") and len(j["meta"]["warna"]) == 7
+    assert hashlib.sha256((vault / rel).read_bytes()).hexdigest() == before
+
+
+def test_zip_entri_aman_saja(client, make):
+    j = extract(client, make("zip")).json()
+    names = sorted(e["name"] for e in j["meta"]["entri"])
+    assert names == ["catatan.txt", "sub/gambar.md"]
+    for e in j["meta"]["entri"]:
+        assert Path(e["path"]).is_file() and Path(e["path"]).is_relative_to(j["meta"]["temp_dir"])
+    assert j["meta"]["ditolak"] == 2
+    shutil.rmtree(j["meta"]["temp_dir"])
+
+
+def test_asset_id_tidak_valid_400(client, make):
+    assert extract(client, make("png"), "../x").status_code == 400
+
+
+def test_zip_bom_tidak_dibongkar(client, make):
+    j = extract(client, make("zip-bom")).json()
+    assert j["meta"]["entri"] == [] and "terlalu besar" in j["meta"]["catatan"]
+
+
+def test_format_tak_dikenal(client, make):
+    j = extract(client, make("bin")).json()
+    assert j["text"] == "" and j["meta"]["ukuran"] == 3
+
+
+def test_path_di_luar_vault_400(client, vault):
+    (vault.parent / "rahasia.txt").write_text("x")
+    for rel in ["../rahasia.txt", str(vault.parent / "rahasia.txt"), "alfonso.db", "logs/x.log"]:
+        assert extract(client, rel).status_code == 400
+
+
+def test_file_hilang_404(client):
+    assert extract(client, "files/ab/hilang.pdf").status_code == 404
+
+
+def test_extract_butuh_token(client, make):
+    assert client.post("/extract", json={"path": make("md"), "asset_id": "a"}).status_code == 401
