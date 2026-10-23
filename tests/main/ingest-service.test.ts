@@ -25,7 +25,7 @@ test('impor → ekstraksi → asset siap, teks bisa dicari, tag otomatis, event 
   const { s, events } = service(async () => ({ text: 'pertanggungjawaban pidana', meta: {}, thumb: null }))
   s.queue.start()
   const [card] = await s.importPaths([write('laporan.pdf', '%PDF')], { x: 0, y: 0 })
-  await vi.waitFor(() => expect(events.at(-1)?.asset.status).toBe('siap'))
+  await vi.waitFor(() => expect(events.at(-1)?.asset?.status).toBe('siap'))
   expect(searchAssets(t.db, 'pidana')[0].cardIds).toEqual([card.id])
   expect(t.db.prepare('SELECT tag FROM asset_tags ORDER BY tag').all()).toEqual([{ tag: 'jalur:impor' }, { tag: 'jenis:dokumen' }])
   await s.queue.stop()
@@ -34,8 +34,8 @@ test('thumbnail dari sidecar disimpan dan dipakai sebagai pratinjau', async () =
   const { s, events } = service(async (_rel, id) => ({ text: '', meta: { warna: '#c81e1e' }, thumb: `thumbs/${id}.webp` }))
   s.queue.start()
   const [card] = await s.importPaths([write('foto.png', 'png')], { x: 0, y: 0 })
-  await vi.waitFor(() => expect(events.at(-1)?.asset.status).toBe('siap'))
-  expect(events.at(-1)?.asset.previewUrl).toBe(`alfonso-vault://thumbs/${card.assetId}.webp`)
+  await vi.waitFor(() => expect(events.at(-1)?.asset?.status).toBe('siap'))
+  expect(events.at(-1)?.asset?.previewUrl).toBe(`alfonso-vault://thumbs/${card.assetId}.webp`)
   await s.queue.stop()
 })
 test('error permanen (file rusak) langsung gagal tanpa dicoba ulang, lalu retry bisa berhasil', async () => {
@@ -43,11 +43,11 @@ test('error permanen (file rusak) langsung gagal tanpa dicoba ulang, lalu retry 
   const { s, events } = service(async () => { calls++; if (broken) throw new PermanentError('PDF rusak atau terenkripsi'); return { text: 'pulih', meta: {}, thumb: null } })
   s.queue.start()
   const [card] = await s.importPaths([write('r.pdf', 'x')], { x: 0, y: 0 })
-  await vi.waitFor(() => expect(events.at(-1)?.asset.status).toBe('gagal'))
-  expect(calls).toBe(1); expect(events.at(-1)?.asset.error).toBe('PDF rusak atau terenkripsi')
+  await vi.waitFor(() => expect(events.at(-1)?.asset?.status).toBe('gagal'))
+  expect(calls).toBe(1); expect(events.at(-1)?.asset?.error).toBe('PDF rusak atau terenkripsi')
   broken = false
   await s.retry(card.assetId!)
-  await vi.waitFor(() => expect(events.at(-1)?.asset.status).toBe('siap'))
+  await vi.waitFor(() => expect(events.at(-1)?.asset?.status).toBe('siap'))
   await s.queue.stop()
 })
 test('ZIP: isi menjadi kartu di dalam grup dan folder sementara dihapus', async () => {
@@ -58,8 +58,8 @@ test('ZIP: isi menjadi kartu di dalam grup dan folder sementara dihapus', async 
     : { text: 'isi', meta: {}, thumb: null })
   s.queue.start()
   const [grup] = await s.importPaths([write('arsip.zip', 'PK')], { x: 100, y: 100 })
-  await vi.waitFor(() => expect(events.find(e => e.asset.id === grup.assetId && e.asset.status === 'siap')).toBeTruthy())
-  const zipEvent = events.find(e => e.asset.id === grup.assetId && e.asset.status === 'siap')!
+  await vi.waitFor(() => expect(events.find(e => e.asset?.id === grup.assetId && e.asset?.status === 'siap')).toBeTruthy())
+  const zipEvent = events.find(e => e.asset?.id === grup.assetId && e.asset?.status === 'siap')!
   expect(zipEvent.newCards.map(c => c.asset?.originalName).sort()).toEqual(['b.md', 'catatan.txt'])
   for (const c of zipEvent.newCards) {
     expect(c.style).toEqual({ grupId: grup.id })
@@ -74,7 +74,7 @@ test('folder sementara yang bukan milik sidecar tidak dihapus', async () => {
   const { s, events } = service(async () => ({ text: '', meta: { entri: [], temp_dir: bukan, ditolak: 0 }, thumb: null }))
   s.queue.start()
   await s.importPaths([write('z.zip', 'PK')], { x: 0, y: 0 })
-  await vi.waitFor(() => expect(events.at(-1)?.asset.status).toBe('siap'))
+  await vi.waitFor(() => expect(events.at(-1)?.asset?.status).toBe('siap'))
   expect(fs.existsSync(bukan)).toBe(true)
   await s.queue.stop()
 })
@@ -105,8 +105,8 @@ test('audio: setelah ekstraksi, transkrip berjalan dan teksnya bisa dicari', asy
   const { s, events } = serviceWithTranscribe(async () => ({ text: 'selamat pagi rapat dimulai' }))
   s.queue.start(); s.transcribeQueue.start()
   const [card] = await s.importPaths([write('rekaman.m4a', 'aud')], { x: 0, y: 0 })
-  await vi.waitFor(() => expect(events.at(-1)?.asset.transkrip).toBe('selesai'))
-  expect(events.at(-1)?.asset.status).toBe('siap')
+  await vi.waitFor(() => expect(events.at(-1)?.asset?.transkrip).toBe('selesai'))
+  expect(events.at(-1)?.asset?.status).toBe('siap')
   expect(searchAssets(t.db, 'rapat')[0].cardIds).toEqual([card.id])
   await s.queue.stop(); await s.transcribeQueue.stop()
 })
@@ -118,11 +118,11 @@ test('model belum diunduh: asset tetap siap, transkrip "belum", lalu jalan setel
   })
   s.queue.start(); s.transcribeQueue.start()
   await s.importPaths([write('klip.mp4', 'vid')], { x: 0, y: 0 })
-  await vi.waitFor(() => expect(events.at(-1)?.asset.transkrip).toBe('belum'))
+  await vi.waitFor(() => expect(events.at(-1)?.asset?.transkrip).toBe('belum'))
   expect(events.at(-1)?.asset).toMatchObject({ status: 'siap', error: null })
   ready = true
   expect(s.requeueTranscripts()).toBe(1)
-  await vi.waitFor(() => expect(events.at(-1)?.asset.transkrip).toBe('selesai'))
+  await vi.waitFor(() => expect(events.at(-1)?.asset?.transkrip).toBe('selesai'))
   expect(searchAssets(t.db, 'video')).toHaveLength(1)
   await s.queue.stop(); await s.transcribeQueue.stop()
 })
@@ -140,8 +140,58 @@ test('file bukan audio/video tidak ditranskrip', async () => {
   const { s, events } = serviceWithTranscribe(transcribe)
   s.queue.start(); s.transcribeQueue.start()
   await s.importPaths([write('catatan.txt', 'teks')], { x: 0, y: 0 })
-  await vi.waitFor(() => expect(events.at(-1)?.asset.status).toBe('siap'))
-  expect(events.at(-1)?.asset.transkrip).toBeNull()
+  await vi.waitFor(() => expect(events.at(-1)?.asset?.status).toBe('siap'))
+  expect(events.at(-1)?.asset?.transkrip).toBeNull()
   expect(transcribe).not.toHaveBeenCalled()
   await s.queue.stop(); await s.transcribeQueue.stop()
+})
+
+// ---- Fase 1B: URL ----
+
+function serviceWithDownload(download: (url: string, dir: string) => Promise<{ path: string; originalName: string; contentType: string | null }>) {
+  const events: IngestEvent[] = []
+  const s = createIngestService({
+    db: t.db, vault: t.vault, log, notify: (e) => events.push(e), retryDelayMs: 0,
+    extract: async () => ({ text: 'isi artikel tentang korporasi', meta: {}, thumb: null }),
+    download
+  })
+  return { s, events }
+}
+
+test('URL ditempel: kartu tautan langsung, lalu isi diunduh dan menempel ke kartu itu', async () => {
+  const dirs: string[] = []
+  const { s, events } = serviceWithDownload(async (url, dir) => {
+    dirs.push(dir)
+    const p = path.join(dir, 'Artikel.html'); fs.writeFileSync(p, `<p>${url}</p>`)
+    return { path: p, originalName: 'Artikel.html', contentType: 'text/html' }
+  })
+  s.queue.start()
+  const card = await s.pasteText('https://contoh.id/artikel', { x: 5, y: 5 })
+  expect(card).toMatchObject({ type: 'tautan', content: 'https://contoh.id/artikel', assetId: null })
+  await vi.waitFor(() => expect(events.some((e) => e.asset?.status === 'siap')).toBe(true))
+  const attached = events.find((e) => e.updatedCards?.length)!.updatedCards![0]
+  expect(attached).toMatchObject({ id: card.id, type: 'tautan', assetId: expect.any(String) })
+  expect(attached.asset?.originalName).toBe('Artikel.html')
+  expect(searchAssets(t.db, 'korporasi')[0].cardIds).toEqual([card.id])
+  expect(t.db.prepare('SELECT tag FROM asset_tags ORDER BY tag').all()).toEqual([{ tag: 'jalur:impor' }, { tag: 'jenis:dokumen' }, { tag: 'sumber:url' }])
+  expect(fs.existsSync(dirs[0])).toBe(false)
+  expect(loadBoard(t.db).cards).toHaveLength(1)
+  await s.queue.stop()
+})
+test('URL gagal diunduh: kartu tautan tetap, ditandai dengan pesannya', async () => {
+  const { s, events } = serviceWithDownload(async () => { throw new Error('Server menjawab 404.') })
+  s.queue.start()
+  const card = await s.pasteText('https://contoh.id/hilang', { x: 0, y: 0 })
+  await vi.waitFor(() => expect(events.find((e) => e.updatedCards?.length)).toBeTruthy())
+  expect(events.find((e) => e.updatedCards?.length)!.updatedCards![0]).toMatchObject({ id: card.id, assetId: null, style: { unduh: 'gagal', pesan: 'Server menjawab 404.' } })
+  await s.queue.stop()
+})
+test('teks biasa tidak memicu unduhan', async () => {
+  const download = vi.fn()
+  const { s } = serviceWithDownload(download)
+  s.queue.start()
+  await s.pasteText('catatan rapat https://contoh.id di tengah', { x: 0, y: 0 })
+  await new Promise((r) => setTimeout(r, 50))
+  expect(download).not.toHaveBeenCalled()
+  await s.queue.stop()
 })

@@ -62,8 +62,15 @@ function BoardInner(props: { initial: { nodes: CardNode[]; edges: Edge[]; viewpo
   useEffect(
     () =>
       api.ingest.onEvent((e: IngestEvent) => {
+        const updated = new Map((e.updatedCards ?? []).map((c) => [c.id, c]))
         setNodes((ns) => [
-          ...ns.map((n) => (n.data.card.assetId === e.asset.id ? { ...n, data: { card: { ...n.data.card, asset: e.asset } } } : n)),
+          ...ns.map((n) => {
+            const u = updated.get(n.id)
+            // Hanya isi kartu yang diganti; posisi dan ukuran tetap milik Board.
+            if (u) return { ...n, data: { card: { ...n.data.card, assetId: u.assetId, asset: u.asset, style: u.style } } }
+            if (e.asset && n.data.card.assetId === e.asset.id) return { ...n, data: { card: { ...n.data.card, asset: e.asset } } }
+            return n
+          }),
           ...e.newCards.filter((c) => !ns.some((n) => n.id === c.id)).map(cardToNode)
         ])
       }),

@@ -86,3 +86,24 @@ test('kartu dari event dan dari hasil drop tidak digandakan', async () => {
   await screen.findByText('laporan.pdf')
   expect(screen.getAllByText('laporan.pdf')).toHaveLength(1)
 })
+test('kartu tautan diperbarui setelah isinya diunduh, lalu status ekstraksi mengikuti', async () => {
+  const link = { ...note('t1'), type: 'tautan' as const, content: 'https://contoh.id/artikel' }
+  api.board.open.mockResolvedValue({ id: 'b', name: 'Board Utama', viewport: null, cards: [link], links: [] })
+  render(<Board />)
+  await screen.findByText('https://contoh.id/artikel')
+  const asset = { id: 'a9', originalName: 'Putusan MA.html', mime: 'text/html', sizeBytes: 10, status: 'memproses' as const, previewUrl: null, error: null, transkrip: null }
+  act(() => emit({ asset, newCards: [], updatedCards: [{ ...link, assetId: 'a9', asset }] }))
+  expect(await screen.findByText('Putusan MA.html')).toBeTruthy()
+  expect(screen.getByText('Memproses…')).toBeTruthy()
+  act(() => emit({ asset: { ...asset, status: 'siap' }, newCards: [] }))
+  await waitFor(() => expect(screen.queryByText('Memproses…')).toBeNull())
+  expect(screen.getByText('https://contoh.id/artikel')).toBeTruthy()
+})
+test('unduhan URL gagal ditampilkan di kartu tautan', async () => {
+  const link = { ...note('t1'), type: 'tautan' as const, content: 'https://contoh.id/hilang' }
+  api.board.open.mockResolvedValue({ id: 'b', name: 'Board Utama', viewport: null, cards: [link], links: [] })
+  render(<Board />)
+  await screen.findByText('https://contoh.id/hilang')
+  act(() => emit({ asset: null, newCards: [], updatedCards: [{ ...link, style: { unduh: 'gagal', pesan: 'Server menjawab 404.' } }] }))
+  expect(await screen.findByText('Isi tidak bisa diunduh: Server menjawab 404.')).toBeTruthy()
+})

@@ -6,7 +6,7 @@ import type { AssetStatus, CardDTO, IngestEvent, Point } from '../../shared/boar
 import type { VaultPaths } from '../../shared/types'
 import type { Logger } from '../logger'
 import { JobQueue } from '../jobs/queue'
-import { importFiles, kindForFile, type ImportOptions } from './importer'
+import { importAsset, importFiles, kindForFile, type ImportOptions } from './importer'
 import { cardsForAsset, getAsset, getCard, getOrCreateDefaultBoard, insertCard, DEFAULT_SIZE, MSG_NO_MODEL } from '../board/repo'
 import { indexAsset } from '../search'
 
@@ -28,6 +28,8 @@ export interface IngestServiceOptions {
   extract: (vaultRelPath: string, assetId: string) => Promise<ExtractResult>
   /** Transkrip audio/video; tanpa ini, audio/video tidak ditranskrip. */
   transcribe?: (vaultRelPath: string, assetId: string) => Promise<{ text: string }>
+  /** Mengunduh isi URL yang ditempel ke folder sementara `dir`; tanpa ini, URL hanya jadi kartu tautan. */
+  download?: (url: string, dir: string) => Promise<{ path: string; originalName: string; contentType: string | null }>
   notify: (e: IngestEvent) => void
   secrets?: () => string[]
   retryDelayMs?: number
@@ -35,11 +37,14 @@ export interface IngestServiceOptions {
 
 const URL_RE = /^https?:\/\/\S+$/i
 
-// Folder sementara ZIP dibuat sidecar dengan prefiks ini di folder temp sistem; hanya itu yang boleh dihapus.
-function isSidecarTempDir(dir: string): boolean {
+// Folder sementara dibuat dengan prefiks ini di folder temp sistem (ZIP oleh sidecar, URL oleh proses utama);
+// hanya folder seperti itu yang boleh dihapus.
+function isOwnTempDir(dir: string, prefix: 'alfonso-zip-' | 'alfonso-url-'): boolean {
   const resolved = path.resolve(dir)
-  return path.dirname(resolved) === path.resolve(os.tmpdir()) && path.basename(resolved).startsWith('alfonso-zip-')
+  return path.dirname(resolved) === path.resolve(os.tmpdir()) && path.basename(resolved).startsWith(prefix)
 }
+
+const TIMEOUT_MSG = 'Waktu habis saat mengunduh.'
 
 export function createIngestService(o: IngestServiceOptions) {
   const { db, vault, log } = o
@@ -75,7 +80,7 @@ export function createIngestService(o: IngestServiceOptions) {
       db.prepare('UPDATE cards SET w = MAX(w, ?), h = MAX(h, ?) WHERE id = ?').run(right - grup.x, bottom - grup.y, grup.id)
       return cards.map((c) => getCard(db, c.id)!)
     } finally {
-      if (tempDir && isSidecarTempDir(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })
+      if (tempDir && isOwnTempDir(tempDir, 'alfonso-zip-')) fs.rmSync(tempDir, { recursive: true, force: true })
       else if (tempDir) log.warn('Folder sementara ZIP di luar folder temp sistem tidak dihapus')
     }
   }
@@ -107,17 +112,47 @@ export function createIngestService(o: IngestServiceOptions) {
     indexAsset(db, assetId, text, tagsFor(row.original_name, assetId), row.extract_status)
   }
 
+  async function runDownload(cardId: string, url: string): Promise<void> {
+    if (!o.download || !getCard(db, cardId)) return
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'alfonso-url-'))
+    try {
+      let file: { path: string }
+      try {
+        file = await o.download(url, dir)
+      } catch (err) {
+        const message = (err as Error).message
+        // Hanya waktu habis yang layak dicoba ulang; 404, alamat lokal, terlalu besar tidak akan berubah.
+        throw message === TIMEOUT_MSG ? err : new PermanentError(message)
+      }
+      const { assetId } = await importAsset(db, vault, file.path, { tags: ['sumber:url'] })
+      db.prepare('UPDATE cards SET asset_id = ?, style_json = NULL WHERE id = ?').run(assetId, cardId)
+      const asset = getAsset(db, assetId)!
+      o.notify({ asset, newCards: [], updatedCards: [getCard(db, cardId)!] })
+      queue.kick()
+    } finally {
+      if (isOwnTempDir(dir, 'alfonso-url-')) await fs.promises.rm(dir, { recursive: true, force: true })
+    }
+  }
+
   const queue = new JobQueue({
     db,
     log,
     secrets: o.secrets,
     retryDelayMs: o.retryDelayMs,
-    kinds: ['ekstrak'],
+    kinds: ['ekstrak', 'unduh-url'],
     run: async (job) => {
+      if (job.kind === 'unduh-url') return runDownload(String(job.payload.cardId), String(job.payload.url))
       if (job.kind !== 'ekstrak') throw new PermanentError(`Jenis job tidak dikenal: ${job.kind}`)
       await runJob(String(job.payload.assetId))
     },
     onFinalFailure: (job, message) => {
+      if (job.kind === 'unduh-url') {
+        const cardId = String(job.payload.cardId)
+        db.prepare('UPDATE cards SET style_json = ? WHERE id = ?').run(JSON.stringify({ unduh: 'gagal', pesan: message }), cardId)
+        const card = getCard(db, cardId)
+        if (card) o.notify({ asset: null, newCards: [], updatedCards: [card] })
+        return
+      }
       const assetId = String(job.payload.assetId)
       const row = db.prepare('SELECT original_name FROM assets WHERE id = ?').get(assetId) as { original_name: string } | undefined
       if (!row) return
@@ -179,7 +214,12 @@ export function createIngestService(o: IngestServiceOptions) {
     async pasteText(text: string, at: Point): Promise<CardDTO> {
       const board = getOrCreateDefaultBoard(db)
       const trimmed = text.trim()
-      if (URL_RE.test(trimmed)) return insertCard(db, { boardId: board.id, type: 'tautan', x: at.x, y: at.y, content: trimmed })
+      if (URL_RE.test(trimmed)) {
+        const card = insertCard(db, { boardId: board.id, type: 'tautan', x: at.x, y: at.y, content: trimmed })
+        // Isi halaman/file diunduh di latar belakang (keputusan Cassanova 2026-10-23: langsung diunduh).
+        if (o.download) queue.enqueue('unduh-url', { cardId: card.id, url: trimmed })
+        return card
+      }
       return insertCard(db, { boardId: board.id, type: 'catatan', x: at.x, y: at.y, content: text, ...DEFAULT_SIZE.catatan })
     },
     async retry(assetId: string): Promise<void> {

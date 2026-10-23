@@ -48,10 +48,14 @@ export const CardBody = memo(function CardBody({ card }: { card: CardDTO }): Rea
   const asset = card.asset
   if (card.type === 'catatan') return <div className="card card-catatan"><NoteBody card={card} /></div>
   if (card.type === 'tautan') {
+    const unduh = card.style as { unduh?: string; pesan?: string } | null
     return (
       <div className="card card-tautan">
         <div className="card-kind">{JENIS_LABEL.tautan}</div>
-        <div className="card-title">{card.content}</div>
+        {asset && <div className="card-title">{asset.originalName}</div>}
+        <div className={asset ? 'card-meta card-url' : 'card-title'}>{card.content}</div>
+        {asset && <AssetStatus asset={asset} />}
+        {!asset && unduh?.unduh === 'gagal' && <div className="card-status card-status-gagal">Isi tidak bisa diunduh: {unduh.pesan}</div>}
       </div>
     )
   }

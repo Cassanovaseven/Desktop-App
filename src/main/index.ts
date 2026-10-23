@@ -14,6 +14,7 @@ import { createIngestService, type IngestService } from './ingest/service'
 import { createSidecarExtractor, createSidecarModelClient, createSidecarTranscriber } from './sidecar-client'
 import { createTranscriptModel } from './transcript-model'
 import { createFolderWatcher, type FolderWatcher } from './ingest/watcher'
+import { downloadUrl } from './ingest/url'
 import { DEFAULT_SIZE, getOrCreateDefaultBoard, insertCard } from './board/repo'
 
 // Harus sebelum `ready`; foldernya dibuat dulu.
@@ -90,6 +91,8 @@ async function bootstrap(): Promise<void> {
     log,
     extract: createSidecarExtractor(manager),
     transcribe: createSidecarTranscriber(manager, () => modelName()),
+    // Alamat lokal hanya diizinkan di mode tes e2e (server tes berjalan di 127.0.0.1).
+    download: (url, dir) => downloadUrl(url, { dir, allowPrivate: process.env.ALFONSO_E2E === '1' }),
     notify: (e) => win?.webContents.send('ingest:event', e),
     secrets: () => [manager.token]
   })

@@ -47,9 +47,12 @@ export interface BoardDTO {
 }
 
 export interface IngestEvent {
-  asset: AssetDTO
+  /** Asset yang statusnya berubah; null bila event hanya memperbarui kartu (mis. unduhan URL gagal). */
+  asset: AssetDTO | null
   /** Kartu baru yang dibuat dari proses ini (mis. isi ZIP). */
   newCards: CardDTO[]
+  /** Kartu yang sudah ada dan berubah (mis. kartu tautan yang kini menunjuk ke isi unduhan). */
+  updatedCards?: CardDTO[]
 }
 
 export interface SearchHit { assetId: string; cardIds: string[]; originalName: string; snippet: string }

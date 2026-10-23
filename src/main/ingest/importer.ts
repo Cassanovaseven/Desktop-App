@@ -75,6 +75,26 @@ export interface ImportOptions {
   tags?: string[]
 }
 
+/** Menyalin satu file ke vault (bila hash-nya belum ada) dan membuat asset + job ekstraksi, tanpa kartu. */
+export async function importAsset(db: Database.Database, vault: VaultPaths, src: string, opts: Pick<ImportOptions, 'tags'> = {}): Promise<{ assetId: string; created: boolean }> {
+  const sha = await sha256File(src)
+  const existing = findAssetBySha(db, sha)
+  if (existing) return { assetId: existing.id, created: false }
+  const kind = kindForFile(src)
+  const size = (await fs.promises.stat(src)).size
+  const vaultPath = await copyIntoVault(vault, src, sha)
+  // Cek ulang: impor lain bisa saja menyelesaikan file yang sama selama penyalinan async.
+  return db.transaction(() => {
+    const again = findAssetBySha(db, sha)
+    if (again) return { assetId: again.id, created: false }
+    const asset = insertAsset(db, { sha256: sha, vaultPath, originalName: path.basename(src), mime: kind.mime, sizeBytes: size })
+    const tag = db.prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag) VALUES (?, ?)')
+    for (const t of opts.tags ?? []) tag.run(asset.id, t)
+    insertJob(db, 'ekstrak', { assetId: asset.id })
+    return { assetId: asset.id, created: true }
+  })()
+}
+
 export async function importFiles(db: Database.Database, vault: VaultPaths, paths: string[], at: Point, opts: ImportOptions = {}): Promise<CardDTO[]> {
   const board = getOrCreateDefaultBoard(db)
   const files: string[] = []
@@ -89,24 +109,10 @@ export async function importFiles(db: Database.Database, vault: VaultPaths, path
   const cards: CardDTO[] = []
   let i = 0
   for (const src of files) {
-    const sha = await sha256File(src)
     const kind = kindForFile(src)
-    const size = (await fs.promises.stat(src)).size
-    let assetId = findAssetBySha(db, sha)?.id
-    if (assetId && opts.skipKnown) continue
-    if (!assetId) {
-      const vaultPath = await copyIntoVault(vault, src, sha)
-      // Cek ulang: impor lain bisa saja menyelesaikan file yang sama selama penyalinan async.
-      assetId = db.transaction(() => {
-        const existing = findAssetBySha(db, sha)
-        if (existing) return existing.id
-        const asset = insertAsset(db, { sha256: sha, vaultPath, originalName: path.basename(src), mime: kind.mime, sizeBytes: size })
-        const tag = db.prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag) VALUES (?, ?)')
-        for (const t of opts.tags ?? []) tag.run(asset.id, t)
-        insertJob(db, 'ekstrak', { assetId: asset.id })
-        return asset.id
-      })()
-    }
+    const r = await importAsset(db, vault, src, opts)
+    if (!r.created && opts.skipKnown) continue
+    const assetId = r.assetId
     const col = i % 5
     const row = Math.floor(i / 5)
     i++
