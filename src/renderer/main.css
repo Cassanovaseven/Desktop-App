@@ -240,8 +240,21 @@ body {
   color: var(--color-warning);
 }
 
-.card-status-gagal {
+.card-status-gagal,
+.card-transkrip-gagal {
   color: var(--color-danger);
+}
+
+.card-transkrip-memproses,
+.card-transkrip-belum {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.card-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-retry {

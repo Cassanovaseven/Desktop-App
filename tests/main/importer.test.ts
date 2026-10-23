@@ -78,3 +78,7 @@ test('dua impor bersamaan untuk file yang sama tidak bentrok', async () => {
   expect(a[0].assetId).toBe(b[0].assetId)
   expect(t.db.prepare('SELECT COUNT(*) AS n FROM assets').get()).toEqual({ n: 1 })
 })
+test('video mendapat kartu setinggi kartu gambar supaya frame kuncinya terlihat', async () => {
+  const [v] = await importFiles(t.db, t.vault, [write('rapat.mp4', 'vid')], { x: 0, y: 0 })
+  expect(v).toMatchObject({ type: 'file', h: 200 })
+})

@@ -122,6 +122,7 @@ export async function importFiles(db: Database.Database, vault: VaultPaths, path
         type: kind.tipeKartu,
         x: at.x + col * (DEFAULT_SIZE.file.w + 20),
         y: at.y + row * (DEFAULT_SIZE.gambar.h + 20),
+        ...(kind.jenis === 'video' ? { h: DEFAULT_SIZE.gambar.h } : {}),
         assetId
       })
     )

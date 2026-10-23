@@ -46,3 +46,23 @@ test('kartu grup ZIP menampilkan nama arsip', () => {
   show(card({ type: 'grup', w: 600, h: 400, asset: asset({ originalName: 'arsip.zip', mime: 'application/zip' }) }))
   expect(screen.getByText('arsip.zip')).toBeTruthy()
 })
+test('kartu video: thumbnail frame kunci dan label Video', () => {
+  show(card({ asset: asset({ originalName: 'rapat.mp4', mime: 'video/mp4', previewUrl: 'alfonso-vault://thumbs/a1.webp', transkrip: 'selesai' }) }))
+  expect((screen.getByRole('img', { name: 'rapat.mp4' }) as HTMLImageElement).getAttribute('src')).toBe('alfonso-vault://thumbs/a1.webp')
+  expect(screen.getByText('Video')).toBeTruthy()
+  expect(screen.getByText('Transkrip siap')).toBeTruthy()
+})
+test.each([
+  ['memproses', 'Mentranskrip…'],
+  ['belum', 'Transkrip belum tersedia. Ctrl+K → Unduh model transkrip…'],
+  ['gagal', 'Transkrip gagal']
+] as const)('kartu audio dengan transkrip %s', (status, text) => {
+  show(card({ asset: asset({ originalName: 'catatan suara.m4a', mime: 'audio/mp4', transkrip: status }) }))
+  expect(screen.getByText('Audio')).toBeTruthy()
+  expect(screen.getByText(text)).toBeTruthy()
+})
+test('kartu PDF tidak menampilkan status transkrip', () => {
+  show(card({}))
+  expect(screen.queryByText(/Transkrip/)).toBeNull()
+  expect(screen.getByText('File')).toBeTruthy()
+})

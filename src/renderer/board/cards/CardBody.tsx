@@ -28,6 +28,21 @@ function AssetStatus({ asset }: { asset: AssetDTO }): React.JSX.Element | null {
   return null
 }
 
+const TRANSKRIP_LABEL: Record<NonNullable<AssetDTO['transkrip']>, string> = {
+  memproses: 'Mentranskrip…',
+  selesai: 'Transkrip siap',
+  belum: 'Transkrip belum tersedia. Ctrl+K → Unduh model transkrip…',
+  gagal: 'Transkrip gagal'
+}
+
+// Label jenis untuk kartu file: audio/video dikenali dari MIME.
+function kindLabel(card: CardDTO): string {
+  const mime = card.asset?.mime ?? ''
+  if (card.type === 'file' && mime.startsWith('video/')) return 'Video'
+  if (card.type === 'file' && mime.startsWith('audio/')) return 'Audio'
+  return JENIS_LABEL[card.type]
+}
+
 function NoteBody({ card }: { card: CardDTO }): React.JSX.Element {
   const [text, setText] = useState(card.content ?? '')
   return (
@@ -61,13 +76,14 @@ export const CardBody = memo(function CardBody({ card }: { card: CardDTO }): Rea
   }
   return (
     <div className={`card card-${card.type}`}>
-      {card.type === 'gambar' && asset?.previewUrl && (
+      {(card.type === 'gambar' || asset?.mime?.startsWith('video/')) && asset?.previewUrl && (
         <img className="card-image" src={asset.previewUrl} alt={asset.originalName} draggable={false} />
       )}
-      <div className="card-kind">{JENIS_LABEL[card.type]}</div>
+      <div className="card-kind">{kindLabel(card)}</div>
       <div className="card-title">{asset?.originalName ?? 'Tanpa nama'}</div>
       {asset && card.type !== 'grup' && <div className="card-meta">{formatSize(asset.sizeBytes)}</div>}
       {asset && <AssetStatus asset={asset} />}
+      {asset?.transkrip && <div className={`card-status card-transkrip-${asset.transkrip}`}>{TRANSKRIP_LABEL[asset.transkrip]}</div>}
     </div>
   )
 })
