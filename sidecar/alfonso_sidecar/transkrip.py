@@ -1,6 +1,7 @@
 """Transkrip lokal dengan faster-whisper. Model diunduh hanya lewat download_model(), setelah pengguna setuju."""
 
 import logging
+import os
 import threading
 from pathlib import Path
 
@@ -60,7 +61,8 @@ def load_model(path: str):
             return WhisperModel(path, device="cuda", compute_type="float16")
     except Exception as e:
         log.warning("GPU tidak dipakai untuk transkrip: %s", type(e).__name__)
-    return WhisperModel(path, device="cpu", compute_type="int8")
+    # Bawaan CTranslate2 hanya 4 thread; di CPU, semua inti dipakai.
+    return WhisperModel(path, device="cpu", compute_type="int8", cpu_threads=os.cpu_count() or 4)
 
 
 SAMPLE_RATE = 16000
@@ -106,7 +108,8 @@ def transcribe(models_root: Path, name: str, audio: Path) -> dict:
         if model is None:
             model = _models[name] = load_model(str(model_dir(models_root, name)))
         try:
-            segments, info = model.transcribe(audio_data, vad_filter=True)
+            # beam_size=1 (greedy): 2–3x lebih cepat dari bawaan 5, ketepatan turun sedikit.
+            segments, info = model.transcribe(audio_data, vad_filter=True, beam_size=1)
             parts = [s.text.strip() for s in segments]
         except Exception as e:
             raise TranscribeError(type(e).__name__) from e

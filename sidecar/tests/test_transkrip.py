@@ -9,6 +9,8 @@ from alfonso_sidecar.app import create_app
 
 TOKEN = "t0k3n"
 H = {"X-Alfonso-Token": TOKEN}
+# Disimpan sebelum fixture menggantinya dengan FakeModel.
+REAL_LOAD_MODEL = transkrip.load_model
 
 
 @pytest.fixture
@@ -113,3 +115,34 @@ def test_model_menerima_array_bukan_path(client, make, monkeypatch):
     client.post("/models/whisper/download", headers=H, json={"model": "small"})
     client.post("/transcribe", headers=H, json={"path": make("wav"), "asset_id": "a1"})
     assert seen["type"] == "ndarray"
+
+
+def test_transkrip_memakai_greedy_supaya_cepat(client, make, monkeypatch):
+    seen = {}
+
+    class Cek(FakeModel):
+        def transcribe(self, audio, **kw):
+            seen.update(kw)
+            return super().transcribe(audio, **kw)
+
+    monkeypatch.setattr(transkrip, "load_model", Cek)
+    client.post("/models/whisper/download", headers=H, json={"model": "small"})
+    client.post("/transcribe", headers=H, json={"path": make("wav"), "asset_id": "a1"})
+    assert seen["beam_size"] == 1
+
+
+def test_model_cpu_memakai_semua_inti(monkeypatch):
+    import sys
+    import types
+
+    made = {}
+
+    class FakeWhisper:
+        def __init__(self, path, **kw):
+            made.update(kw)
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=FakeWhisper))
+    monkeypatch.setitem(sys.modules, "ctranslate2", types.SimpleNamespace(get_cuda_device_count=lambda: 0))
+    monkeypatch.setattr(transkrip.os, "cpu_count", lambda: 12)
+    REAL_LOAD_MODEL("x")
+    assert made == {"device": "cpu", "compute_type": "int8", "cpu_threads": 12}
