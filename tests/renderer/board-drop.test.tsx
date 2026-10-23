@@ -76,3 +76,13 @@ test('Tambah catatan lewat pengendali Board', async () => {
   await waitFor(() => expect(api.board.createNote).toHaveBeenCalled())
   expect(((await screen.findByLabelText('Isi catatan')) as HTMLTextAreaElement).value).toBe('baru')
 })
+test('kartu dari event dan dari hasil drop tidak digandakan', async () => {
+  render(<Board />)
+  const board = await screen.findByTestId('board')
+  const created = (await api.ingest.dropFiles())[0]
+  act(() => emit({ asset: created.asset, newCards: [created] }))
+  drop(board, [new File(['x'], 'laporan.pdf')])
+  await waitFor(() => expect(api.ingest.dropFiles).toHaveBeenCalledTimes(2))
+  await screen.findByText('laporan.pdf')
+  expect(screen.getAllByText('laporan.pdf')).toHaveLength(1)
+})

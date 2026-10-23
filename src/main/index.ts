@@ -9,6 +9,10 @@ import { openDatabase } from './db/database'
 import { loadThemes } from './theme'
 import { SidecarManager, findPython } from './sidecar'
 import { registerIpc } from './ipc'
+import { registerVaultScheme, handleVaultScheme } from './vault-protocol'
+import { createIngestService, type IngestService } from './ingest/service'
+import { createSidecarExtractor } from './sidecar-client'
+import { DEFAULT_SIZE, getOrCreateDefaultBoard, insertCard } from './board/repo'
 
 // Harus sebelum `ready`; foldernya dibuat dulu.
 if (process.env.ALFONSO_USER_DATA) {
@@ -16,11 +20,15 @@ if (process.env.ALFONSO_USER_DATA) {
   app.setPath('userData', process.env.ALFONSO_USER_DATA)
 }
 
+// Skema vault harus didaftarkan sebelum `ready`.
+registerVaultScheme()
+
 // out/main → root aplikasi
 const appRoot = join(__dirname, '../..')
 let win: BrowserWindow | null = null
 let db: Database.Database | null = null
 let sidecar: SidecarManager | null = null
+let ingest: IngestService | null = null
 let quitting = false
 
 function createWindow(): BrowserWindow {
@@ -64,11 +72,43 @@ async function bootstrap(): Promise<void> {
     command: findPython(appRoot),
     args: ['-m', 'alfonso_sidecar'],
     cwd: join(appRoot, 'sidecar'),
+    env: { ALFONSO_VAULT_ROOT: vault.root },
     log
   })
   sidecar = manager
+  handleVaultScheme(vault.root)
 
-  registerIpc({ getWindow: () => win, vault, db, themes, sidecar: manager })
+  const service = createIngestService({
+    db,
+    vault,
+    log,
+    extract: createSidecarExtractor(manager),
+    notify: (e) => win?.webContents.send('ingest:event', e),
+    secrets: () => [manager.token]
+  })
+  ingest = service
+  // Antrean baru berjalan setelah sidecar siap; job yang masuk sebelumnya menunggu dengan status 'antre'.
+  manager.onStatus((s) => {
+    if (s.state === 'ready') service.queue.start()
+  })
+
+  registerIpc({ getWindow: () => win, vault, db, themes, sidecar: manager, ingest: service })
+
+  // Kait khusus tes e2e, hanya ada di proses utama dan hanya bila ALFONSO_E2E=1 (tidak terjangkau renderer).
+  if (process.env.ALFONSO_E2E === '1') {
+    const testDb = db
+    ;(globalThis as Record<string, unknown>).__alfonsoTest = {
+      importPaths: (paths: string[], at: { x: number; y: number }) => service.importPaths(paths, at),
+      fillBoard: (count: number) => {
+        const board = getOrCreateDefaultBoard(testDb)
+        testDb.transaction(() => {
+          for (let i = 0; i < count; i++) {
+            insertCard(testDb, { boardId: board.id, type: 'catatan', x: (i % 100) * 260, y: Math.floor(i / 100) * 180, content: `Kartu ${i}`, ...DEFAULT_SIZE.catatan })
+          }
+        })()
+      }
+    }
+  }
   win = createWindow()
   // Jendela tidak menunggu sidecar siap.
   void manager.start()
@@ -84,6 +124,7 @@ app.on('before-quit', (e) => {
   e.preventDefault()
   void (async () => {
     try {
+      await ingest?.queue.stop()
       await sidecar?.stop()
       db?.close()
     } finally {

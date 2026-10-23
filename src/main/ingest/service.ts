@@ -1,0 +1,132 @@
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
+import type Database from 'better-sqlite3'
+import type { CardDTO, IngestEvent, Point } from '../../shared/board-types'
+import type { VaultPaths } from '../../shared/types'
+import type { Logger } from '../logger'
+import { JobQueue } from '../jobs/queue'
+import { importFiles, kindForFile } from './importer'
+import { cardsForAsset, getAsset, getCard, getOrCreateDefaultBoard, insertCard, DEFAULT_SIZE } from '../board/repo'
+import { indexAsset } from '../search'
+
+export interface ExtractResult {
+  text: string
+  meta: Record<string, unknown>
+  thumb: string | null
+}
+
+/** Ekstraksi gagal karena isi file (rusak, terenkripsi); mencoba ulang otomatis tidak ada gunanya. */
+export class PermanentError extends Error {
+  readonly permanent = true
+}
+
+export interface IngestServiceOptions {
+  db: Database.Database
+  vault: VaultPaths
+  log: Logger
+  extract: (vaultRelPath: string, assetId: string) => Promise<ExtractResult>
+  notify: (e: IngestEvent) => void
+  secrets?: () => string[]
+  retryDelayMs?: number
+}
+
+const URL_RE = /^https?:\/\/\S+$/i
+
+// Folder sementara ZIP dibuat sidecar dengan prefiks ini di folder temp sistem; hanya itu yang boleh dihapus.
+function isSidecarTempDir(dir: string): boolean {
+  const resolved = path.resolve(dir)
+  return path.dirname(resolved) === path.resolve(os.tmpdir()) && path.basename(resolved).startsWith('alfonso-zip-')
+}
+
+export function createIngestService(o: IngestServiceOptions) {
+  const { db, vault, log } = o
+
+  const tagsFor = (name: string): string[] => [`jenis:${kindForFile(name).jenis}`, 'jalur:impor']
+
+  const saveTags = (assetId: string, tags: string[]): void => {
+    const stmt = db.prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag) VALUES (?, ?)')
+    for (const tag of tags) stmt.run(assetId, tag)
+  }
+
+  async function expandZip(zipAssetId: string, meta: Record<string, unknown>): Promise<CardDTO[]> {
+    const entries = (meta.entri as { name: string; path: string }[] | undefined) ?? []
+    const tempDir = typeof meta.temp_dir === 'string' ? meta.temp_dir : null
+    try {
+      const grupId = cardsForAsset(db, zipAssetId)[0]
+      const grup = grupId ? getCard(db, grupId) : null
+      if (!grup || entries.length === 0) return []
+      const pad = 20
+      const cards = await importFiles(db, vault, entries.map((e) => e.path), { x: grup.x + pad, y: grup.y + 48 })
+      const style = JSON.stringify({ grupId: grup.id })
+      const setStyle = db.prepare('UPDATE cards SET style_json = ? WHERE id = ?')
+      for (const c of cards) setStyle.run(style, c.id)
+      // Bingkai grup diperbesar supaya semua kartu isinya muat.
+      const right = Math.max(...cards.map((c) => c.x + c.w)) + pad
+      const bottom = Math.max(...cards.map((c) => c.y + c.h)) + pad
+      db.prepare('UPDATE cards SET w = MAX(w, ?), h = MAX(h, ?) WHERE id = ?').run(right - grup.x, bottom - grup.y, grup.id)
+      return cards.map((c) => getCard(db, c.id)!)
+    } finally {
+      if (tempDir && isSidecarTempDir(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })
+      else if (tempDir) log.warn('Folder sementara ZIP di luar folder temp sistem tidak dihapus')
+    }
+  }
+
+  async function runJob(assetId: string): Promise<void> {
+    const row = db.prepare('SELECT vault_path, original_name FROM assets WHERE id = ?').get(assetId) as
+      | { vault_path: string; original_name: string }
+      | undefined
+    if (!row) throw new PermanentError('Asset tidak ditemukan')
+    const result = await o.extract(row.vault_path, assetId)
+    const newCards = kindForFile(row.original_name).jenis === 'arsip' ? await expandZip(assetId, result.meta) : []
+    const tags = tagsFor(row.original_name)
+    saveTags(assetId, tags)
+    indexAsset(db, assetId, result.text, tags, 'siap', result.thumb)
+    o.notify({ asset: getAsset(db, assetId)!, newCards })
+  }
+
+  const queue = new JobQueue({
+    db,
+    log,
+    secrets: o.secrets,
+    retryDelayMs: o.retryDelayMs,
+    run: async (job) => {
+      if (job.kind !== 'ekstrak') throw new PermanentError(`Jenis job tidak dikenal: ${job.kind}`)
+      await runJob(String(job.payload.assetId))
+    },
+    onFinalFailure: (job, message) => {
+      const assetId = String(job.payload.assetId)
+      const row = db.prepare('SELECT original_name FROM assets WHERE id = ?').get(assetId) as { original_name: string } | undefined
+      if (!row) return
+      // Nama file tetap bisa dicari walau isinya gagal diekstrak.
+      indexAsset(db, assetId, '', tagsFor(row.original_name), 'gagal')
+      log.warn(`Ekstraksi ${row.original_name} gagal: ${message}`)
+      o.notify({ asset: getAsset(db, assetId)!, newCards: [] })
+    }
+  })
+
+  return {
+    queue,
+    async importPaths(paths: string[], at: Point): Promise<CardDTO[]> {
+      const cards = await importFiles(db, vault, paths, at)
+      // Semua sumber impor (drop, isi ZIP, nanti folder dipantau) memberi tahu Board lewat event yang sama.
+      for (const c of cards) if (c.asset) o.notify({ asset: c.asset, newCards: [c] })
+      queue.kick()
+      return cards
+    },
+    async pasteText(text: string, at: Point): Promise<CardDTO> {
+      const board = getOrCreateDefaultBoard(db)
+      const trimmed = text.trim()
+      if (URL_RE.test(trimmed)) return insertCard(db, { boardId: board.id, type: 'tautan', x: at.x, y: at.y, content: trimmed })
+      return insertCard(db, { boardId: board.id, type: 'catatan', x: at.x, y: at.y, content: text, ...DEFAULT_SIZE.catatan })
+    },
+    async retry(assetId: string): Promise<void> {
+      if (!getAsset(db, assetId)) throw new Error('Asset tidak ditemukan')
+      db.prepare("UPDATE assets SET extract_status = 'memproses' WHERE id = ?").run(assetId)
+      o.notify({ asset: getAsset(db, assetId)!, newCards: [] })
+      queue.enqueue('ekstrak', { assetId })
+    }
+  }
+}
+
+export type IngestService = ReturnType<typeof createIngestService>

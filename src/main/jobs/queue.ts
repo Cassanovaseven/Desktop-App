@@ -23,10 +23,17 @@ export class JobQueue {
   private readonly timers = new Set<NodeJS.Timeout>()
 
   constructor(opts: JobQueueOptions) {
-    this.o = { concurrency: 2, maxAttempts: 3, retryDelayMs: 1000, secrets: () => [], ...opts }
+    this.o = {
+      ...opts,
+      concurrency: opts.concurrency ?? 2,
+      maxAttempts: opts.maxAttempts ?? 3,
+      retryDelayMs: opts.retryDelayMs ?? 1000,
+      secrets: opts.secrets ?? (() => [])
+    }
   }
 
   start(): void {
+    if (this.running) return
     // Job yang tertinggal 'berjalan' karena crash dilanjutkan dari awal.
     this.o.db.prepare("UPDATE jobs SET status = 'antre', updated_at = ? WHERE status = 'berjalan'").run(new Date().toISOString())
     this.running = true
@@ -86,7 +93,8 @@ export class JobQueue {
       this.setStatus(job.id, 'selesai', { lastError: null })
     } catch (err) {
       const message = redact((err as Error).message || String(err), this.o.secrets())
-      if (job.attempts >= this.o.maxAttempts) {
+      // Error permanen (mis. file rusak) tidak akan sembuh dengan dicoba ulang.
+      if (job.attempts >= this.o.maxAttempts || (err as { permanent?: boolean }).permanent) {
         this.setStatus(job.id, 'gagal', { lastError: message })
         this.o.log.warn(`Job ${job.kind} ${job.id} gagal: ${message}`)
         this.o.onFinalFailure?.(job, message)

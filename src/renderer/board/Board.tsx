@@ -40,7 +40,7 @@ function BoardInner(props: { initial: { nodes: CardNode[]; edges: Edge[]; viewpo
   }, [])
 
   const addCards = useCallback((cards: CardDTO[]) => {
-    setNodes((ns) => [...ns, ...cards.map(cardToNode)])
+    setNodes((ns) => [...ns, ...cards.filter((c) => !ns.some((n) => n.id === c.id)).map(cardToNode)])
   }, [])
 
   const centerPosition = useCallback(() => {
