@@ -1,4 +1,6 @@
+import math
 import struct
+import wave
 import zipfile
 from pathlib import Path
 
@@ -31,6 +33,29 @@ def minimal_pdf(text: str) -> bytes:
         out += f"{off:010d} 00000 n \n".encode()
     out += f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
     return bytes(out)
+
+
+def make_wav(path: Path, seconds: float = 2.0, rate: int = 16000) -> None:
+    n = int(seconds * rate)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(b"".join(struct.pack("<h", int(8000 * math.sin(2 * math.pi * 440 * i / rate))) for i in range(n)))
+
+
+def make_mp4(path: Path, seconds: int = 2, fps: int = 10, rgb: tuple[int, int, int] = (0, 180, 0)) -> None:
+    import av
+
+    with av.open(str(path), "w") as out:
+        stream = out.add_stream("mpeg4", rate=fps)
+        stream.width, stream.height, stream.pix_fmt = 64, 48, "yuv420p"
+        for _ in range(seconds * fps):
+            frame = av.VideoFrame.from_image(Image.new("RGB", (64, 48), rgb))
+            for packet in stream.encode(frame):
+                out.mux(packet)
+        for packet in stream.encode():
+            out.mux(packet)
 
 
 def minimal_psd(width: int, height: int, rgb: tuple[int, int, int]) -> bytes:
@@ -122,6 +147,15 @@ def make(vault: Path):
         if kind == "psd-rusak":
             (d / "r.psd").write_bytes(b"8BPS\x00\x01rusak")
             return "files/ab/r.psd"
+        if kind == "wav":
+            make_wav(d / "s.wav")
+            return "files/ab/s.wav"
+        if kind == "mp4":
+            make_mp4(d / "v.mp4")
+            return "files/ab/v.mp4"
+        if kind == "mp4-rusak":
+            (d / "r.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42 bukan video")
+            return "files/ab/r.mp4"
         if kind == "zip":
             with zipfile.ZipFile(d / "c.zip", "w") as z:
                 z.writestr("catatan.txt", "isi catatan")

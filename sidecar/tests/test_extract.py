@@ -160,3 +160,30 @@ def test_ocr_gagal_tidak_menggagalkan_ekstraksi(client, make, monkeypatch):
     monkeypatch.setattr(gambar, "ocr_text", boom)
     j = extract(client, make("png")).json()
     assert j["meta"]["ocr"] == "gagal" and j["thumb"]
+
+
+# ---- Fase 1B: audio dan video ----
+
+
+def test_audio_durasi_tanpa_thumbnail(client, make):
+    j = extract(client, make("wav")).json()
+    assert abs(j["meta"]["durasi"] - 2.0) < 0.1
+    assert j["thumb"] is None and j["text"] == ""
+
+
+def test_video_durasi_dan_frame_kunci(client, make, vault):
+    rel = make("mp4")
+    before = hashlib.sha256((vault / rel).read_bytes()).hexdigest()
+    j = extract(client, rel, "aset-vid").json()
+    assert abs(j["meta"]["durasi"] - 2.0) < 0.3
+    assert j["meta"]["lebar"] == 64 and j["meta"]["tinggi"] == 48
+    assert j["thumb"] == "thumbs/aset-vid.webp"
+    with Image.open(vault / j["thumb"]) as t:
+        r, g, b = t.convert("RGB").getpixel((10, 10))
+    assert g > 120 and r < 80
+    assert hashlib.sha256((vault / rel).read_bytes()).hexdigest() == before
+
+
+def test_video_rusak_422(client, make):
+    r = extract(client, make("mp4-rusak"))
+    assert r.status_code == 422 and r.json()["detail"] == "Audio/video rusak atau formatnya tidak didukung"

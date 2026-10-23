@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from . import arsip, dokumen, gambar, teks
+from . import arsip, dokumen, gambar, media, teks
 
 MAX_TEXT = 2_000_000
 
@@ -35,6 +35,8 @@ def extract_file(path: Path, asset_id: str, thumbs_dir: Path) -> dict:
             text, meta, thumb = gambar.image(path, thumbs_dir / f"{asset_id}.webp")
         elif ext == "svg":
             text, meta = "", {"ukuran": path.stat().st_size}
+        elif ext in media.AUDIO or ext in media.VIDEO:
+            text, meta, thumb = media.media(path, thumbs_dir / f"{asset_id}.webp", ext in media.VIDEO)
         elif ext == "zip":
             text, meta = arsip.zip_entries(path)
         else:
@@ -47,6 +49,8 @@ def extract_file(path: Path, asset_id: str, thumbs_dir: Path) -> dict:
         raise ExtractError("Dokumen rusak atau formatnya tidak didukung") from e
     except gambar.ImageError as e:
         raise ExtractError("Gambar rusak atau formatnya tidak didukung") from e
+    except media.MediaError as e:
+        raise ExtractError("Audio/video rusak atau formatnya tidak didukung") from e
     except arsip.ZipError as e:
         raise ExtractError("ZIP rusak") from e
     return {"text": text[:MAX_TEXT], "meta": meta, "thumb": f"thumbs/{thumb.name}" if thumb else None}
