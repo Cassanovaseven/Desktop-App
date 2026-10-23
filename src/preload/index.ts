@@ -43,6 +43,7 @@ const api: AlfonsoApi = {
       return ipcRenderer.invoke('ingest:importPaths', paths, at)
     },
     pasteText: (text, at) => ipcRenderer.invoke('ingest:pasteText', text, at),
+    pasteImage: (bytes, mime, at) => ipcRenderer.invoke('ingest:pasteImage', bytes, mime, at),
     retry: (assetId) => ipcRenderer.invoke('ingest:retry', assetId),
     onEvent: (cb) => {
       const w = (_e: Electron.IpcRendererEvent, v: IngestEvent): void => cb(v)

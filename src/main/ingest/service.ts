@@ -39,12 +39,20 @@ const URL_RE = /^https?:\/\/\S+$/i
 
 // Folder sementara dibuat dengan prefiks ini di folder temp sistem (ZIP oleh sidecar, URL oleh proses utama);
 // hanya folder seperti itu yang boleh dihapus.
-function isOwnTempDir(dir: string, prefix: 'alfonso-zip-' | 'alfonso-url-'): boolean {
+function isOwnTempDir(dir: string, prefix: 'alfonso-zip-' | 'alfonso-url-' | 'alfonso-paste-'): boolean {
   const resolved = path.resolve(dir)
   return path.dirname(resolved) === path.resolve(os.tmpdir()) && path.basename(resolved).startsWith(prefix)
 }
 
 const TIMEOUT_MSG = 'Waktu habis saat mengunduh.'
+
+const PASTE_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
+export const MAX_PASTE_BYTES = 50 * 1024 * 1024
+
+const stamp = (d: Date): string => {
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
 
 export function createIngestService(o: IngestServiceOptions) {
   const { db, vault, log } = o
@@ -221,6 +229,20 @@ export function createIngestService(o: IngestServiceOptions) {
         return card
       }
       return insertCard(db, { boardId: board.id, type: 'catatan', x: at.x, y: at.y, content: text, ...DEFAULT_SIZE.catatan })
+    },
+    /** Gambar dari clipboard (tanpa path di disk): ditulis ke folder sementara lalu diimpor seperti file biasa. */
+    async pasteImage(bytes: Uint8Array, mime: string, at: Point): Promise<CardDTO[]> {
+      const ext = PASTE_EXT[mime]
+      if (!ext) throw new Error('Hanya gambar PNG, JPEG, WebP, atau GIF yang bisa ditempel.')
+      if (bytes.byteLength > MAX_PASTE_BYTES) throw new Error('Gambar terlalu besar (maks. 50 MB).')
+      const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'alfonso-paste-'))
+      try {
+        const file = path.join(dir, `tempel-${stamp(new Date())}.${ext}`)
+        await fs.promises.writeFile(file, bytes, { flag: 'wx' })
+        return await this.importPaths([file], at)
+      } finally {
+        if (isOwnTempDir(dir, 'alfonso-paste-')) await fs.promises.rm(dir, { recursive: true, force: true })
+      }
     },
     async retry(assetId: string): Promise<void> {
       if (!getAsset(db, assetId)) throw new Error('Asset tidak ditemukan')

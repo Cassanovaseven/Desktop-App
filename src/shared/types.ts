@@ -37,6 +37,8 @@ export interface AlfonsoApi {
   ingest: {
     dropFiles(files: File[], at: Point): Promise<CardDTO[]>;
     pasteText(text: string, at: Point): Promise<CardDTO>;
+    /** Gambar dari clipboard (PNG/JPEG/WebP/GIF, maks. 50 MB). */
+    pasteImage(bytes: ArrayBuffer, mime: string, at: Point): Promise<CardDTO[]>;
     retry(assetId: string): Promise<void>;
     onEvent(cb: (e: IngestEvent) => void): () => void;
   };

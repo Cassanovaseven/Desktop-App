@@ -19,6 +19,8 @@ export const boardController = {
   focusCard: (id: string): void => controller?.focusCard(id)
 }
 
+const PASTE_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+
 function isTextInput(el: EventTarget | null): boolean {
   return el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
 }
@@ -91,6 +93,16 @@ function BoardInner(props: { initial: { nodes: CardNode[]; edges: Edge[]; viewpo
   useEffect(() => {
     const onPaste = (e: ClipboardEvent): void => {
       if (isTextInput(e.target)) return
+      const image = Array.from(e.clipboardData?.files ?? []).find((f) => PASTE_IMAGE_TYPES.includes(f.type))
+      if (image) {
+        e.preventDefault()
+        const at = centerPosition()
+        image
+          .arrayBuffer()
+          .then((buf) => api.ingest.pasteImage(buf, image.type, at))
+          .then(addCards, (err: Error) => showMessage(err.message))
+        return
+      }
       const text = e.clipboardData?.getData('text/plain')?.trim()
       if (!text) return
       e.preventDefault()

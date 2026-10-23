@@ -18,6 +18,7 @@ beforeEach(() => {
     ingest: {
       dropFiles: vi.fn(async () => [{ ...note('f1'), type: 'file', assetId: 'a1', asset: { id: 'a1', originalName: 'laporan.pdf', mime: null, sizeBytes: 1, status: 'memproses', previewUrl: null, error: null, transkrip: null } }]),
       pasteText: vi.fn(async () => ({ ...note('t1'), type: 'tautan', content: 'https://contoh.id' })),
+      pasteImage: vi.fn(async () => [{ ...note('g1'), type: 'gambar', assetId: 'a2', asset: { id: 'a2', originalName: 'tempel-20261023-101500.png', mime: 'image/png', sizeBytes: 3, status: 'memproses', previewUrl: null, error: null, transkrip: null } }]),
       retry: vi.fn(),
       onEvent: vi.fn((cb) => { emit = cb; return () => {} })
     }
@@ -106,4 +107,27 @@ test('unduhan URL gagal ditampilkan di kartu tautan', async () => {
   await screen.findByText('https://contoh.id/hilang')
   act(() => emit({ asset: null, newCards: [], updatedCards: [{ ...link, style: { unduh: 'gagal', pesan: 'Server menjawab 404.' } }] }))
   expect(await screen.findByText('Isi tidak bisa diunduh: Server menjawab 404.')).toBeTruthy()
+})
+test('paste gambar (screenshot) dikirim sebagai byte lewat ingest.pasteImage', async () => {
+  render(<Board />)
+  await screen.findByTestId('board')
+  const img = new File([new Uint8Array([137, 80, 78])], 'image.png', { type: 'image/png' })
+  const ev = new Event('paste', { bubbles: true, cancelable: true }) as any
+  ev.clipboardData = { files: [img], getData: () => '' }
+  act(() => { window.dispatchEvent(ev) })
+  await waitFor(() => expect(api.ingest.pasteImage).toHaveBeenCalled())
+  const [bytes, mime, at] = api.ingest.pasteImage.mock.calls[0]
+  expect(new Uint8Array(bytes)).toEqual(new Uint8Array([137, 80, 78]))
+  expect(mime).toBe('image/png'); expect(at).toEqual(expect.objectContaining({ x: expect.any(Number) }))
+  expect(await screen.findByText('tempel-20261023-101500.png')).toBeTruthy()
+  expect(api.ingest.pasteText).not.toHaveBeenCalled()
+})
+test('paste file bukan gambar tidak dikirim; teksnya tetap dipakai bila ada', async () => {
+  render(<Board />)
+  await screen.findByTestId('board')
+  const ev = new Event('paste', { bubbles: true, cancelable: true }) as any
+  ev.clipboardData = { files: [new File(['x'], 'a.pdf', { type: 'application/pdf' })], getData: () => 'catatan' }
+  act(() => { window.dispatchEvent(ev) })
+  await waitFor(() => expect(api.ingest.pasteText).toHaveBeenCalledWith('catatan', expect.anything()))
+  expect(api.ingest.pasteImage).not.toHaveBeenCalled()
 })

@@ -195,3 +195,22 @@ test('teks biasa tidak memicu unduhan', async () => {
   expect(download).not.toHaveBeenCalled()
   await s.queue.stop()
 })
+
+// ---- Fase 1B: tempel gambar ----
+
+test('pasteImage: byte gambar jadi file di vault dengan nama tempel-*, folder sementara dihapus', async () => {
+  const { s } = service(async () => ({ text: '', meta: {}, thumb: null }))
+  const png = Buffer.from('89504e470d0a1a0a', 'hex')
+  const before = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('alfonso-paste-')).length
+  const [card] = await s.pasteImage(png, 'image/png', { x: 1, y: 2 })
+  expect(card).toMatchObject({ type: 'gambar', x: 1, y: 2 })
+  expect(card.asset?.originalName).toMatch(/^tempel-\d{8}-\d{6}\.png$/)
+  const row = t.db.prepare('SELECT vault_path FROM assets WHERE id = ?').get(card.assetId) as { vault_path: string }
+  expect(fs.readFileSync(path.join(t.vault.root, row.vault_path))).toEqual(png)
+  expect(fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('alfonso-paste-')).length).toBe(before)
+})
+test('pasteImage menolak tipe lain dan ukuran berlebih', async () => {
+  const { s } = service(async () => ({ text: '', meta: {}, thumb: null }))
+  await expect(s.pasteImage(Buffer.from('x'), 'application/pdf', { x: 0, y: 0 })).rejects.toThrow('Hanya gambar PNG, JPEG, WebP, atau GIF yang bisa ditempel.')
+  await expect(s.pasteImage(Buffer.alloc(51 * 1024 * 1024), 'image/png', { x: 0, y: 0 })).rejects.toThrow('Gambar terlalu besar (maks. 50 MB).')
+})

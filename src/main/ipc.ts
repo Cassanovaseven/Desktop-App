@@ -116,6 +116,11 @@ export function registerIpc(deps: IpcDeps): void {
     await deps.watcher.remove(dirs[i])
     return { message: `Berhenti memantau: ${dirs[i]}` }
   })
+  ipcMain.handle('ingest:pasteImage', (_e, bytes: unknown, mime: unknown, at: unknown) => {
+    // ArrayBuffer dari renderer tiba sebagai ArrayBuffer (structured clone); ukuran dan tipe dicek di layanan.
+    assert((bytes instanceof ArrayBuffer || bytes instanceof Uint8Array) && typeof mime === 'string' && isPoint(at))
+    return deps.ingest.pasteImage(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), mime, at)
+  })
   ipcMain.handle('ingest:pasteText', (_e, text: unknown, at: unknown) => {
     assert(typeof text === 'string' && text.length <= 1_000_000 && isPoint(at))
     return deps.ingest.pasteText(text, at)
