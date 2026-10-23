@@ -15,6 +15,8 @@ export interface AssetDTO {
   error: string | null
   /** Hanya audio/video: null bila tidak ditranskrip; 'belum' = model transkrip belum diunduh. */
   transkrip: TranscriptStatus | null
+  /** Hasil ekstraksi: durasi (detik), lebar/tinggi, warna, dsb. */
+  meta: Record<string, unknown> | null
 }
 
 export type TranscriptStatus = 'memproses' | 'selesai' | 'gagal' | 'belum'

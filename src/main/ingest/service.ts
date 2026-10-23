@@ -44,6 +44,13 @@ function isOwnTempDir(dir: string, prefix: 'alfonso-zip-' | 'alfonso-url-' | 'al
   return path.dirname(resolved) === path.resolve(os.tmpdir()) && path.basename(resolved).startsWith(prefix)
 }
 
+// Data kerja sidecar (isi ZIP, folder sementara) dan status transkrip (diturunkan dari jobs) tidak disimpan.
+const TRANSIENT_META = new Set(['entri', 'temp_dir', 'ditolak', 'transkrip'])
+function storedMeta(meta: Record<string, unknown>): string | null {
+  const kept = Object.fromEntries(Object.entries(meta ?? {}).filter(([k]) => !TRANSIENT_META.has(k)))
+  return Object.keys(kept).length ? JSON.stringify(kept) : null
+}
+
 const TIMEOUT_MSG = 'Waktu habis saat mengunduh.'
 
 const PASTE_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
@@ -108,6 +115,7 @@ export function createIngestService(o: IngestServiceOptions) {
     const tags = tagsFor(row.original_name, assetId)
     saveTags(assetId, tags)
     indexAsset(db, assetId, result.text, tags, 'siap', result.thumb)
+    db.prepare('UPDATE assets SET meta_json = ? WHERE id = ?').run(storedMeta(result.meta), assetId)
     // Transkrip dijalankan di antrean terpisah (satu per satu) supaya video panjang tidak menahan file lain.
     if (o.transcribe && isMedia(row.original_name)) transcribeQueue.enqueue('transkrip', { assetId })
     o.notify({ asset: getAsset(db, assetId)!, newCards })

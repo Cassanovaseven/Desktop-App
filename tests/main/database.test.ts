@@ -16,11 +16,26 @@ afterEach(() => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
-test('semua tabel ada dan versi skema 1', () => {
+test('semua tabel ada dan versi skema terbaru (2)', () => {
   const db = open(dbPath)
   const t = db.prepare("SELECT name FROM sqlite_master WHERE type IN ('table')").all().map((r: any) => r.name)
   for (const n of ['projects','boards','assets','asset_tags','cards','links','prompts','generations','jobs','settings','assets_fts']) expect(t).toContain(n)
-  expect(db.pragma('user_version', { simple: true })).toBe(1)
+  expect(db.pragma('user_version', { simple: true })).toBe(2)
+  expect(db.prepare('SELECT name FROM pragma_table_info(?)').all('assets').map((r: any) => r.name)).toContain('meta_json')
+})
+test('database versi 1 dimigrasi ke versi 2 tanpa kehilangan data', () => {
+  // Database Fase 1A: skema asli tanpa meta_json.
+  const Database = require('better-sqlite3')
+  const old = new Database(dbPath)
+  old.exec(require('fs').readFileSync(require('path').join(__dirname, '../../src/main/db/schema.sql'), 'utf8'))
+  old.exec('PRAGMA user_version = 1')
+  old.prepare("INSERT INTO assets (id, sha256, vault_path, original_name, extract_status, created_at) VALUES ('a1','s','files/x','x.pdf','siap','t')").run()
+  old.close()
+  const db = open(dbPath)
+  expect(db.pragma('user_version', { simple: true })).toBe(2)
+  expect(db.prepare('SELECT original_name, meta_json FROM assets').get()).toEqual({ original_name: 'x.pdf', meta_json: null })
+  db.close()
+  expect(open(dbPath).pragma('user_version', { simple: true })).toBe(2)
 })
 test('WAL dan foreign key aktif', () => {
   const db = open(dbPath)

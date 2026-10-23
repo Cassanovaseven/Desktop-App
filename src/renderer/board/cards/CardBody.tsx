@@ -35,6 +35,14 @@ const TRANSKRIP_LABEL: Record<NonNullable<AssetDTO['transkrip']>, string> = {
   gagal: 'Transkrip gagal'
 }
 
+export function formatDuration(sec: number): string {
+  const t = Math.floor(sec)
+  const h = Math.floor(t / 3600)
+  const m = Math.floor((t % 3600) / 60)
+  const s = String(t % 60).padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`
+}
+
 // Label jenis untuk kartu file: audio/video dikenali dari MIME.
 function kindLabel(card: CardDTO): string {
   const mime = card.asset?.mime ?? ''
@@ -82,6 +90,7 @@ export const CardBody = memo(function CardBody({ card }: { card: CardDTO }): Rea
       <div className="card-kind">{kindLabel(card)}</div>
       <div className="card-title">{asset?.originalName ?? 'Tanpa nama'}</div>
       {asset && card.type !== 'grup' && <div className="card-meta">{formatSize(asset.sizeBytes)}</div>}
+      {typeof asset?.meta?.durasi === 'number' && <div className="card-meta card-durasi">{formatDuration(asset.meta.durasi)}</div>}
       {asset && <AssetStatus asset={asset} />}
       {asset?.transkrip && <div className={`card-status card-transkrip-${asset.transkrip}`}>{TRANSKRIP_LABEL[asset.transkrip]}</div>}
     </div>

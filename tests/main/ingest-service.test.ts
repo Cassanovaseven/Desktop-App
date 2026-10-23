@@ -214,3 +214,15 @@ test('pasteImage menolak tipe lain dan ukuran berlebih', async () => {
   await expect(s.pasteImage(Buffer.from('x'), 'application/pdf', { x: 0, y: 0 })).rejects.toThrow('Hanya gambar PNG, JPEG, WebP, atau GIF yang bisa ditempel.')
   await expect(s.pasteImage(Buffer.alloc(51 * 1024 * 1024), 'image/png', { x: 0, y: 0 })).rejects.toThrow('Gambar terlalu besar (maks. 50 MB).')
 })
+
+// ---- Metadata (kolom meta_json) ----
+
+test('metadata ekstraksi disimpan per asset; data internal ZIP dan status transkrip tidak ikut', async () => {
+  const { s, events } = service(async () => ({ text: '', meta: { durasi: 125.4, lebar: 64, transkrip: 'belum', entri: [], temp_dir: '/x', ditolak: 0 }, thumb: null }))
+  s.queue.start()
+  const [card] = await s.importPaths([write('rekaman.m4a', 'aud')], { x: 0, y: 0 })
+  await vi.waitFor(() => expect(events.at(-1)?.asset?.status).toBe('siap'))
+  expect(events.at(-1)?.asset?.meta).toEqual({ durasi: 125.4, lebar: 64 })
+  expect(loadBoard(t.db).cards.find((c) => c.id === card.id)?.asset?.meta).toEqual({ durasi: 125.4, lebar: 64 })
+  await s.queue.stop()
+})

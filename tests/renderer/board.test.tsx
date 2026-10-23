@@ -12,7 +12,7 @@ const saveCards = vi.fn(async () => {})
 beforeEach(() => { (window as any).alfonso = { ingest: { retry }, board: { saveCards } } })
 afterEach(() => { cleanup(); retry.mockClear(); saveCards.mockClear() })
 
-const asset = (p: Partial<AssetDTO>): AssetDTO => ({ id: 'a1', originalName: 'laporan.pdf', mime: 'application/pdf', sizeBytes: 2048, status: 'siap', previewUrl: null, error: null, transkrip: null, ...p })
+const asset = (p: Partial<AssetDTO>): AssetDTO => ({ id: 'a1', originalName: 'laporan.pdf', mime: 'application/pdf', sizeBytes: 2048, status: 'siap', previewUrl: null, error: null, transkrip: null, meta: null, ...p })
 const card = (p: Partial<CardDTO>): CardDTO => ({ id: 'c1', boardId: 'b', type: 'file', x: 0, y: 0, w: 240, h: 120, z: 0, assetId: 'a1', content: null, style: null, asset: asset({}), ...p })
 const show = (c: CardDTO) => render(<ReactFlowProvider><CardBody card={c} /></ReactFlowProvider>)
 
@@ -65,4 +65,12 @@ test('kartu PDF tidak menampilkan status transkrip', () => {
   show(card({}))
   expect(screen.queryByText(/Transkrip/)).toBeNull()
   expect(screen.getByText('File')).toBeTruthy()
+})
+test.each([
+  [125.4, '2:05'],
+  [3725, '1:02:05'],
+  [9, '0:09']
+])('durasi %s detik tampil sebagai %s', (durasi, label) => {
+  show(card({ asset: asset({ originalName: 'rekaman.m4a', mime: 'audio/mp4', meta: { durasi } }) }))
+  expect(screen.getByText(label)).toBeTruthy()
 })

@@ -48,7 +48,8 @@ test('file baru (juga di subfolder) diimpor setelah ukurannya stabil; file sumbe
   await vi.waitFor(() => expect(imported.flat()).toContain('baru.md'), { timeout: 3000 })
   expect(sha(p)).toBe(before)
   expect(fs.readdirSync(path.join(src, 'sub'))).toEqual(['baru.md'])
-  expect(t.db.prepare("SELECT tag FROM asset_tags WHERE tag = 'sumber:folder'").all()).toHaveLength(1)
+  // Nama dicatat sebelum impor selesai, jadi tag ditunggu juga.
+  await vi.waitFor(() => expect(t.db.prepare("SELECT tag FROM asset_tags WHERE tag = 'sumber:folder'").all()).toHaveLength(1))
 })
 test('file yang masih ditulis ditunggu sampai stabil', async () => {
   const fw = watcher()

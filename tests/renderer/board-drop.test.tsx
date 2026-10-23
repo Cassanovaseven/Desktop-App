@@ -16,9 +16,9 @@ beforeEach(() => {
       saveCards: vi.fn(async () => {}), createNote: vi.fn(async () => note('n1', 'baru')), deleteCards: vi.fn(), link: vi.fn(), unlink: vi.fn(), saveViewport: vi.fn()
     },
     ingest: {
-      dropFiles: vi.fn(async () => [{ ...note('f1'), type: 'file', assetId: 'a1', asset: { id: 'a1', originalName: 'laporan.pdf', mime: null, sizeBytes: 1, status: 'memproses', previewUrl: null, error: null, transkrip: null } }]),
+      dropFiles: vi.fn(async () => [{ ...note('f1'), type: 'file', assetId: 'a1', asset: { id: 'a1', originalName: 'laporan.pdf', mime: null, sizeBytes: 1, status: 'memproses', previewUrl: null, error: null, transkrip: null, meta: null } }]),
       pasteText: vi.fn(async () => ({ ...note('t1'), type: 'tautan', content: 'https://contoh.id' })),
-      pasteImage: vi.fn(async () => [{ ...note('g1'), type: 'gambar', assetId: 'a2', asset: { id: 'a2', originalName: 'tempel-20261023-101500.png', mime: 'image/png', sizeBytes: 3, status: 'memproses', previewUrl: null, error: null, transkrip: null } }]),
+      pasteImage: vi.fn(async () => [{ ...note('g1'), type: 'gambar', assetId: 'a2', asset: { id: 'a2', originalName: 'tempel-20261023-101500.png', mime: 'image/png', sizeBytes: 3, status: 'memproses', previewUrl: null, error: null, transkrip: null, meta: null } }]),
       retry: vi.fn(),
       onEvent: vi.fn((cb) => { emit = cb; return () => {} })
     }
@@ -52,7 +52,7 @@ test('event ingest memperbarui status kartu', async () => {
   const board = await screen.findByTestId('board')
   drop(board, [new File(['x'], 'laporan.pdf')])
   await screen.findByText('Memproses…')
-  act(() => emit({ asset: { id: 'a1', originalName: 'laporan.pdf', mime: null, sizeBytes: 1, status: 'gagal', previewUrl: null, error: 'PDF rusak atau terenkripsi', transkrip: null }, newCards: [] }))
+  act(() => emit({ asset: { id: 'a1', originalName: 'laporan.pdf', mime: null, sizeBytes: 1, status: 'gagal', previewUrl: null, error: 'PDF rusak atau terenkripsi', transkrip: null, meta: null }, newCards: [] }))
   expect(await screen.findByText('Gagal ekstrak')).toBeTruthy()
 })
 test('drop gagal menampilkan pesan', async () => {
@@ -92,7 +92,7 @@ test('kartu tautan diperbarui setelah isinya diunduh, lalu status ekstraksi meng
   api.board.open.mockResolvedValue({ id: 'b', name: 'Board Utama', viewport: null, cards: [link], links: [] })
   render(<Board />)
   await screen.findByText('https://contoh.id/artikel')
-  const asset = { id: 'a9', originalName: 'Putusan MA.html', mime: 'text/html', sizeBytes: 10, status: 'memproses' as const, previewUrl: null, error: null, transkrip: null }
+  const asset = { id: 'a9', originalName: 'Putusan MA.html', mime: 'text/html', sizeBytes: 10, status: 'memproses' as const, previewUrl: null, error: null, transkrip: null, meta: null }
   act(() => emit({ asset, newCards: [], updatedCards: [{ ...link, assetId: 'a9', asset }] }))
   expect(await screen.findByText('Putusan MA.html')).toBeTruthy()
   expect(screen.getByText('Memproses…')).toBeTruthy()

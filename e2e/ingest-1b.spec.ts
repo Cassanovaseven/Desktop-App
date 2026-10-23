@@ -64,6 +64,7 @@ test('OCR gambar dan kartu video', async () => {
   // Video: frame kunci jadi thumbnail; model transkrip belum diunduh.
   const video = node(win, 'klip.mp4')
   await expect(video.getByText('Video')).toBeVisible()
+  await expect(video.getByText('0:02')).toBeVisible()
   const img = video.locator('img.card-image')
   await expect(img).toHaveAttribute('src', /^alfonso-vault:\/\/thumbs\//)
   await expect.poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)

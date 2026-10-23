@@ -38,7 +38,7 @@ export function getOrCreateDefaultBoard(db: DB): BoardRow {
 
 interface AssetRow {
   id: string; vault_path: string; original_name: string; mime: string | null; size_bytes: number | null
-  thumb_path: string | null; extract_status: AssetStatus
+  thumb_path: string | null; extract_status: AssetStatus; meta_json: string | null
 }
 
 export function vaultUrl(relPath: string): string {
@@ -78,7 +78,8 @@ function assetToDTO(db: DB, r: AssetRow): AssetDTO {
     status: r.extract_status,
     previewUrl,
     error: r.extract_status === 'gagal' ? lastError(db, r.id) : null,
-    transkrip: transcriptStatus(db, r.id)
+    transkrip: transcriptStatus(db, r.id),
+    meta: r.meta_json ? JSON.parse(r.meta_json) : null
   }
 }
 
