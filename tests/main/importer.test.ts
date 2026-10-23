@@ -19,6 +19,7 @@ test('kindForFile mengenali kelompok dan tipe kartu', () => {
   expect(kindForFile('foto.jpg')).toMatchObject({ jenis: 'gambar', tipeKartu: 'gambar', mime: 'image/jpeg' })
   expect(kindForFile('main.py')).toMatchObject({ jenis: 'kode', tipeKartu: 'kode' })
   expect(kindForFile('arsip.zip')).toMatchObject({ jenis: 'arsip', tipeKartu: 'grup' })
+  expect(kindForFile('desain.psd')).toMatchObject({ jenis: 'gambar', tipeKartu: 'gambar', mime: 'image/vnd.adobe.photoshop' })
   expect(kindForFile('data.xyz')).toMatchObject({ jenis: 'lainnya', tipeKartu: 'file', mime: null })
 })
 test('impor menyalin ke files/<2 huruf>/<hash>.pdf, membuat asset memproses, kartu, dan job antre', async () => {

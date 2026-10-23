@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from alfonso_sidecar.app import create_app
 
@@ -105,3 +106,57 @@ def test_file_hilang_404(client):
 
 def test_extract_butuh_token(client, make):
     assert client.post("/extract", json={"path": make("md"), "asset_id": "a"}).status_code == 401
+
+
+# ---- Fase 1B: OCR, warna dominan, GIF, PSD ----
+
+
+def test_ocr_teks_di_gambar_masuk_teks(client, make):
+    j = extract(client, make("png-teks"), "aset-ocr").json()
+    assert "pidana" in j["text"].lower()
+    assert j["meta"]["ocr"] == "ok"
+
+
+def test_gambar_tanpa_teks_ocr_kosong(client, make):
+    j = extract(client, make("png")).json()
+    assert j["text"] == "" and j["meta"]["ocr"] == "ok"
+
+
+def test_warna_dominan_bukan_rata_rata(client, make):
+    j = extract(client, make("png-dominan")).json()
+    r, g, b = (int(j["meta"]["warna"][i : i + 2], 16) for i in (1, 3, 5))
+    assert r > 180 and g < 60 and b < 60
+
+
+def test_gif_frame_pertama(client, make, vault):
+    j = extract(client, make("gif"), "aset-gif").json()
+    assert j["thumb"] == "thumbs/aset-gif.webp"
+    with Image.open(vault / j["thumb"]) as t:
+        r, g, b = t.convert("RGB").getpixel((5, 5))
+    assert g > 150 and b < 60
+    assert j["meta"]["frame"] == 2
+
+
+def test_psd_gambar_gabungan(client, make, vault):
+    rel = make("psd")
+    before = hashlib.sha256((vault / rel).read_bytes()).hexdigest()
+    j = extract(client, rel, "aset-psd").json()
+    assert j["thumb"] == "thumbs/aset-psd.webp" and j["meta"]["lebar"] == 32 and j["meta"]["tinggi"] == 24
+    assert j["meta"]["warna"] == "#0a78c8"
+    assert hashlib.sha256((vault / rel).read_bytes()).hexdigest() == before
+
+
+def test_psd_rusak_422(client, make):
+    r = extract(client, make("psd-rusak"))
+    assert r.status_code == 422 and r.json()["detail"] == "Gambar rusak atau formatnya tidak didukung"
+
+
+def test_ocr_gagal_tidak_menggagalkan_ekstraksi(client, make, monkeypatch):
+    from alfonso_sidecar.extract import gambar
+
+    def boom(_img):
+        raise RuntimeError("onnx mati")
+
+    monkeypatch.setattr(gambar, "ocr_text", boom)
+    j = extract(client, make("png")).json()
+    assert j["meta"]["ocr"] == "gagal" and j["thumb"]

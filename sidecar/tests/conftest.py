@@ -1,10 +1,11 @@
+import struct
 import zipfile
 from pathlib import Path
 
 import pytest
 from docx import Document
 from openpyxl import Workbook
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from pptx import Presentation
 from pptx.util import Inches
 
@@ -30,6 +31,14 @@ def minimal_pdf(text: str) -> bytes:
         out += f"{off:010d} 00000 n \n".encode()
     out += f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
     return bytes(out)
+
+
+def minimal_psd(width: int, height: int, rgb: tuple[int, int, int]) -> bytes:
+    """PSD RGB 8-bit tanpa lapisan, data gambar gabungan tanpa kompresi (Pillow tidak bisa menulis PSD)."""
+    header = b"8BPS" + struct.pack(">H6xHIIHH", 1, 3, height, width, 8, 3)
+    sections = struct.pack(">III", 0, 0, 0)  # color mode data, image resources, layer & mask
+    planes = b"".join(bytes([c]) * (width * height) for c in rgb)
+    return header + sections + struct.pack(">H", 0) + planes
 
 
 @pytest.fixture
@@ -92,6 +101,27 @@ def make(vault: Path):
         if kind == "png":
             Image.new("RGB", (800, 600), (200, 30, 30)).save(d / "c.png")
             return "files/ab/c.png"
+        if kind == "png-teks":
+            img = Image.new("RGB", (640, 120), "white")
+            ImageDraw.Draw(img).text((20, 30), "Laporan pidana korporasi", fill="black", font=ImageFont.load_default(size=40))
+            img.save(d / "t.png")
+            return "files/ab/t.png"
+        if kind == "png-dominan":
+            # Sebagian besar merah, sebagian kecil biru: warna dominan = merah, bukan rata-ratanya.
+            img = Image.new("RGB", (100, 100), (220, 20, 20))
+            img.paste((20, 20, 220), (0, 0, 100, 30))
+            img.save(d / "dom.png")
+            return "files/ab/dom.png"
+        if kind == "gif":
+            frames = [Image.new("RGB", (40, 30), c) for c in ((0, 200, 0), (0, 0, 200))]
+            frames[0].save(d / "a.gif", save_all=True, append_images=frames[1:], duration=100, loop=0)
+            return "files/ab/a.gif"
+        if kind == "psd":
+            (d / "c.psd").write_bytes(minimal_psd(32, 24, (10, 120, 200)))
+            return "files/ab/c.psd"
+        if kind == "psd-rusak":
+            (d / "r.psd").write_bytes(b"8BPS\x00\x01rusak")
+            return "files/ab/r.psd"
         if kind == "zip":
             with zipfile.ZipFile(d / "c.zip", "w") as z:
                 z.writestr("catatan.txt", "isi catatan")

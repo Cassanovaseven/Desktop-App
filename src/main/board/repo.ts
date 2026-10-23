@@ -52,8 +52,11 @@ function lastError(db: DB, assetId: string): string | null {
   return r?.last_error ?? null
 }
 
+// Format yang bisa ditampilkan browser langsung, sebelum thumbnail jadi.
+const BROWSER_IMAGE = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'])
+
 function assetToDTO(db: DB, r: AssetRow): AssetDTO {
-  const previewUrl = r.thumb_path ? vaultUrl(r.thumb_path) : r.mime?.startsWith('image/') ? vaultUrl(r.vault_path) : null
+  const previewUrl = r.thumb_path ? vaultUrl(r.thumb_path) : r.mime && BROWSER_IMAGE.has(r.mime) ? vaultUrl(r.vault_path) : null
   return {
     id: r.id,
     originalName: r.original_name,

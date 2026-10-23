@@ -28,6 +28,7 @@ const TYPES: Record<string, { jenis: Jenis; mime: string | null }> = {
   webp: { jenis: 'gambar', mime: 'image/webp' },
   gif: { jenis: 'gambar', mime: 'image/gif' },
   svg: { jenis: 'gambar', mime: 'image/svg+xml' },
+  psd: { jenis: 'gambar', mime: 'image/vnd.adobe.photoshop' },
   zip: { jenis: 'arsip', mime: 'application/zip' },
   mp3: { jenis: 'audio', mime: 'audio/mpeg' },
   wav: { jenis: 'audio', mime: 'audio/wav' },

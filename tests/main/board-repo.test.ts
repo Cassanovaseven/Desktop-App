@@ -59,3 +59,7 @@ test('asset gambar memakai URL alfonso-vault, bukan path absolut', () => {
   const c = loadBoard(t.db).cards[0]
   expect(c.asset).toMatchObject({ status: 'memproses', previewUrl: 'alfonso-vault://files/bb/y.png', originalName: 'y.png' })
 })
+test('PSD tanpa thumbnail tidak dipratinjau langsung (browser tidak bisa menampilkannya)', () => {
+  const asset = insertAsset(t.db, { sha256: 'c'.repeat(64), vaultPath: 'files/cc/z.psd', originalName: 'z.psd', mime: 'image/vnd.adobe.photoshop', sizeBytes: 3 })
+  expect(asset.previewUrl).toBeNull()
+})
