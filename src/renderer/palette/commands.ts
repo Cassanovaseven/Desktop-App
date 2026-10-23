@@ -32,6 +32,14 @@ export function buildCommands(ctx: CommandContext): Command[] {
       label: 'Status sidecar',
       run: async () => ctx.showMessage(sidecarLabel(await ctx.api.sidecar.getStatus()))
     },
+    {
+      id: 'transkrip.download',
+      label: 'Unduh model transkrip…',
+      run: async () => {
+        ctx.showMessage('Menyiapkan model transkrip…')
+        ctx.showMessage((await ctx.api.transkrip.downloadModel()).message)
+      }
+    },
     { id: 'layout.reset', label: 'Reset tata letak', run: () => ctx.resetLayout() }
   ]
 }

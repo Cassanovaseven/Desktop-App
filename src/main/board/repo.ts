@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import type Database from 'better-sqlite3'
 import type {
-  AssetDTO, AssetStatus, BoardDTO, CardDTO, CardPatch, CardType, LinkDTO, Viewport
+  AssetDTO, AssetStatus, BoardDTO, CardDTO, CardPatch, CardType, LinkDTO, TranscriptStatus, Viewport
 } from '../../shared/board-types'
 
 type DB = Database.Database
@@ -47,9 +47,22 @@ export function vaultUrl(relPath: string): string {
 
 function lastError(db: DB, assetId: string): string | null {
   const r = db
-    .prepare("SELECT last_error FROM jobs WHERE json_extract(payload_json, '$.assetId') = ? ORDER BY updated_at DESC, rowid DESC LIMIT 1")
+    .prepare("SELECT last_error FROM jobs WHERE kind = 'ekstrak' AND json_extract(payload_json, '$.assetId') = ? ORDER BY updated_at DESC, rowid DESC LIMIT 1")
     .get(assetId) as { last_error: string | null } | undefined
   return r?.last_error ?? null
+}
+
+/** Pesan sidecar (409) bila model Whisper belum ada; transkrip lalu ditandai 'belum', bukan 'gagal'. */
+export const MSG_NO_MODEL = 'Model transkrip belum diunduh'
+
+function transcriptStatus(db: DB, assetId: string): TranscriptStatus | null {
+  const r = db
+    .prepare("SELECT status, last_error FROM jobs WHERE kind = 'transkrip' AND json_extract(payload_json, '$.assetId') = ? ORDER BY created_at DESC, rowid DESC LIMIT 1")
+    .get(assetId) as { status: string; last_error: string | null } | undefined
+  if (!r) return null
+  if (r.status === 'selesai') return 'selesai'
+  if (r.status === 'gagal') return r.last_error === MSG_NO_MODEL ? 'belum' : 'gagal'
+  return 'memproses'
 }
 
 // Format yang bisa ditampilkan browser langsung, sebelum thumbnail jadi.
@@ -64,7 +77,8 @@ function assetToDTO(db: DB, r: AssetRow): AssetDTO {
     sizeBytes: r.size_bytes,
     status: r.extract_status,
     previewUrl,
-    error: r.extract_status === 'gagal' ? lastError(db, r.id) : null
+    error: r.extract_status === 'gagal' ? lastError(db, r.id) : null,
+    transkrip: transcriptStatus(db, r.id)
   }
 }
 

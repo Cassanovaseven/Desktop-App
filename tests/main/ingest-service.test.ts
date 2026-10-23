@@ -88,3 +88,60 @@ test('impor memberi tahu Board tentang kartu baru', async () => {
   const [card] = await s.importPaths([write('n.txt', 'n')], { x: 0, y: 0 })
   expect(events[0]).toMatchObject({ asset: { status: 'memproses' }, newCards: [{ id: card.id }] })
 })
+
+// ---- Fase 1B: transkrip ----
+
+function serviceWithTranscribe(transcribe: (rel: string, assetId: string) => Promise<{ text: string }>) {
+  const events: IngestEvent[] = []
+  const s = createIngestService({
+    db: t.db, vault: t.vault, log, notify: (e) => events.push(e), retryDelayMs: 0,
+    extract: async () => ({ text: '', meta: { durasi: 2 }, thumb: null }),
+    transcribe
+  })
+  return { s, events }
+}
+
+test('audio: setelah ekstraksi, transkrip berjalan dan teksnya bisa dicari', async () => {
+  const { s, events } = serviceWithTranscribe(async () => ({ text: 'selamat pagi rapat dimulai' }))
+  s.queue.start(); s.transcribeQueue.start()
+  const [card] = await s.importPaths([write('rekaman.m4a', 'aud')], { x: 0, y: 0 })
+  await vi.waitFor(() => expect(events.at(-1)?.asset.transkrip).toBe('selesai'))
+  expect(events.at(-1)?.asset.status).toBe('siap')
+  expect(searchAssets(t.db, 'rapat')[0].cardIds).toEqual([card.id])
+  await s.queue.stop(); await s.transcribeQueue.stop()
+})
+test('model belum diunduh: asset tetap siap, transkrip "belum", lalu jalan setelah model ada', async () => {
+  let ready = false
+  const { s, events } = serviceWithTranscribe(async () => {
+    if (!ready) throw new PermanentError('Model transkrip belum diunduh')
+    return { text: 'isi video' }
+  })
+  s.queue.start(); s.transcribeQueue.start()
+  await s.importPaths([write('klip.mp4', 'vid')], { x: 0, y: 0 })
+  await vi.waitFor(() => expect(events.at(-1)?.asset.transkrip).toBe('belum'))
+  expect(events.at(-1)?.asset).toMatchObject({ status: 'siap', error: null })
+  ready = true
+  expect(s.requeueTranscripts()).toBe(1)
+  await vi.waitFor(() => expect(events.at(-1)?.asset.transkrip).toBe('selesai'))
+  expect(searchAssets(t.db, 'video')).toHaveLength(1)
+  await s.queue.stop(); await s.transcribeQueue.stop()
+})
+test('transkrip berjalan satu per satu', async () => {
+  let active = 0; let peak = 0
+  const { s } = serviceWithTranscribe(async () => { active++; peak = Math.max(peak, active); await new Promise((r) => setTimeout(r, 30)); active--; return { text: 'x' } })
+  s.queue.start(); s.transcribeQueue.start()
+  await s.importPaths([write('a.mp3', 'a'), write('b.wav', 'b'), write('c.ogg', 'c')], { x: 0, y: 0 })
+  await vi.waitFor(() => expect(t.db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE kind = 'transkrip' AND status = 'selesai'").get()).toEqual({ n: 3 }))
+  expect(peak).toBe(1)
+  await s.queue.stop(); await s.transcribeQueue.stop()
+})
+test('file bukan audio/video tidak ditranskrip', async () => {
+  const transcribe = vi.fn(async () => ({ text: '' }))
+  const { s, events } = serviceWithTranscribe(transcribe)
+  s.queue.start(); s.transcribeQueue.start()
+  await s.importPaths([write('catatan.txt', 'teks')], { x: 0, y: 0 })
+  await vi.waitFor(() => expect(events.at(-1)?.asset.status).toBe('siap'))
+  expect(events.at(-1)?.asset.transkrip).toBeNull()
+  expect(transcribe).not.toHaveBeenCalled()
+  await s.queue.stop(); await s.transcribeQueue.stop()
+})

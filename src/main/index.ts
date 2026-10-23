@@ -11,7 +11,8 @@ import { SidecarManager, findPython } from './sidecar'
 import { registerIpc } from './ipc'
 import { registerVaultScheme, handleVaultScheme } from './vault-protocol'
 import { createIngestService, type IngestService } from './ingest/service'
-import { createSidecarExtractor } from './sidecar-client'
+import { createSidecarExtractor, createSidecarModelClient, createSidecarTranscriber } from './sidecar-client'
+import { createTranscriptModel } from './transcript-model'
 import { DEFAULT_SIZE, getOrCreateDefaultBoard, insertCard } from './board/repo'
 
 // Harus sebelum `ready`; foldernya dibuat dulu.
@@ -72,27 +73,53 @@ async function bootstrap(): Promise<void> {
     command: findPython(appRoot),
     args: ['-m', 'alfonso_sidecar'],
     cwd: join(appRoot, 'sidecar'),
-    env: { ALFONSO_VAULT_ROOT: vault.root },
+    // Model Whisper di folder data aplikasi, bukan di vault (dibuat sidecar saat unduhan pertama).
+    env: { ALFONSO_VAULT_ROOT: vault.root, ALFONSO_MODELS_DIR: join(app.getPath('userData'), 'models') },
     log
   })
   sidecar = manager
   handleVaultScheme(vault.root)
 
+  const appDb = db
+  let modelName = (): string => 'small'
   const service = createIngestService({
     db,
     vault,
     log,
     extract: createSidecarExtractor(manager),
+    transcribe: createSidecarTranscriber(manager, () => modelName()),
     notify: (e) => win?.webContents.send('ingest:event', e),
     secrets: () => [manager.token]
   })
   ingest = service
+  const transcriptModel = createTranscriptModel({
+    db: appDb,
+    client: createSidecarModelClient(manager),
+    confirm: async (model, sizeMb) => {
+      const opts = {
+        type: 'question' as const,
+        title: 'Alfonso',
+        message: `Unduh model transkrip "${model}" (sekitar ${sizeMb} MB) dari Hugging Face?`,
+        detail: 'Model disimpan di folder data aplikasi dan hanya diunduh sekali. Transkrip berjalan di komputer ini.',
+        buttons: ['Unduh', 'Batal'],
+        defaultId: 0,
+        cancelId: 1
+      }
+      const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts)
+      return r.response === 0
+    },
+    onReady: () => service.requeueTranscripts()
+  })
+  modelName = transcriptModel.modelName
   // Antrean baru berjalan setelah sidecar siap; job yang masuk sebelumnya menunggu dengan status 'antre'.
   manager.onStatus((s) => {
-    if (s.state === 'ready') service.queue.start()
+    if (s.state === 'ready') {
+      service.queue.start()
+      service.transcribeQueue.start()
+    }
   })
 
-  registerIpc({ getWindow: () => win, vault, db, themes, sidecar: manager, ingest: service })
+  registerIpc({ getWindow: () => win, vault, db, themes, sidecar: manager, ingest: service, transcriptModel })
 
   // Kait khusus tes e2e, hanya ada di proses utama dan hanya bila ALFONSO_E2E=1 (tidak terjangkau renderer).
   if (process.env.ALFONSO_E2E === '1') {
@@ -124,7 +151,7 @@ app.on('before-quit', (e) => {
   e.preventDefault()
   void (async () => {
     try {
-      await ingest?.queue.stop()
+      await Promise.all([ingest?.queue.stop(), ingest?.transcribeQueue.stop()])
       await sidecar?.stop()
       db?.close()
     } finally {

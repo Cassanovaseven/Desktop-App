@@ -13,7 +13,11 @@ export interface AssetDTO {
   /** URL alfonso-vault:// untuk pratinjau (thumbnail, atau file gambar asli). */
   previewUrl: string | null
   error: string | null
+  /** Hanya audio/video: null bila tidak ditranskrip; 'belum' = model transkrip belum diunduh. */
+  transkrip: TranscriptStatus | null
 }
+
+export type TranscriptStatus = 'memproses' | 'selesai' | 'gagal' | 'belum'
 
 export interface CardDTO {
   id: string

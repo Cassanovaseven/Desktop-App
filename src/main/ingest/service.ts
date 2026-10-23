@@ -2,12 +2,12 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import type Database from 'better-sqlite3'
-import type { CardDTO, IngestEvent, Point } from '../../shared/board-types'
+import type { AssetStatus, CardDTO, IngestEvent, Point } from '../../shared/board-types'
 import type { VaultPaths } from '../../shared/types'
 import type { Logger } from '../logger'
 import { JobQueue } from '../jobs/queue'
 import { importFiles, kindForFile } from './importer'
-import { cardsForAsset, getAsset, getCard, getOrCreateDefaultBoard, insertCard, DEFAULT_SIZE } from '../board/repo'
+import { cardsForAsset, getAsset, getCard, getOrCreateDefaultBoard, insertCard, DEFAULT_SIZE, MSG_NO_MODEL } from '../board/repo'
 import { indexAsset } from '../search'
 
 export interface ExtractResult {
@@ -26,6 +26,8 @@ export interface IngestServiceOptions {
   vault: VaultPaths
   log: Logger
   extract: (vaultRelPath: string, assetId: string) => Promise<ExtractResult>
+  /** Transkrip audio/video; tanpa ini, audio/video tidak ditranskrip. */
+  transcribe?: (vaultRelPath: string, assetId: string) => Promise<{ text: string }>
   notify: (e: IngestEvent) => void
   secrets?: () => string[]
   retryDelayMs?: number
@@ -72,17 +74,31 @@ export function createIngestService(o: IngestServiceOptions) {
     }
   }
 
-  async function runJob(assetId: string): Promise<void> {
-    const row = db.prepare('SELECT vault_path, original_name FROM assets WHERE id = ?').get(assetId) as
-      | { vault_path: string; original_name: string }
+  const assetRow = (assetId: string) =>
+    db.prepare('SELECT vault_path, original_name, extracted_text, extract_status FROM assets WHERE id = ?').get(assetId) as
+      | { vault_path: string; original_name: string; extracted_text: string | null; extract_status: AssetStatus }
       | undefined
+
+  const isMedia = (name: string): boolean => ['audio', 'video'].includes(kindForFile(name).jenis)
+
+  async function runJob(assetId: string): Promise<void> {
+    const row = assetRow(assetId)
     if (!row) throw new PermanentError('Asset tidak ditemukan')
     const result = await o.extract(row.vault_path, assetId)
     const newCards = kindForFile(row.original_name).jenis === 'arsip' ? await expandZip(assetId, result.meta) : []
     const tags = tagsFor(row.original_name)
     saveTags(assetId, tags)
     indexAsset(db, assetId, result.text, tags, 'siap', result.thumb)
+    // Transkrip dijalankan di antrean terpisah (satu per satu) supaya video panjang tidak menahan file lain.
+    if (o.transcribe && isMedia(row.original_name)) transcribeQueue.enqueue('transkrip', { assetId })
     o.notify({ asset: getAsset(db, assetId)!, newCards })
+  }
+
+  async function runTranscribe(assetId: string): Promise<void> {
+    const row = assetRow(assetId)
+    if (!row || !o.transcribe) throw new PermanentError('Asset tidak ditemukan')
+    const { text } = await o.transcribe(row.vault_path, assetId)
+    indexAsset(db, assetId, text, tagsFor(row.original_name), row.extract_status)
   }
 
   const queue = new JobQueue({
@@ -90,6 +106,7 @@ export function createIngestService(o: IngestServiceOptions) {
     log,
     secrets: o.secrets,
     retryDelayMs: o.retryDelayMs,
+    kinds: ['ekstrak'],
     run: async (job) => {
       if (job.kind !== 'ekstrak') throw new PermanentError(`Jenis job tidak dikenal: ${job.kind}`)
       await runJob(String(job.payload.assetId))
@@ -105,8 +122,47 @@ export function createIngestService(o: IngestServiceOptions) {
     }
   })
 
+  const notifyAsset = (assetId: string): void => {
+    const asset = getAsset(db, assetId)
+    if (asset) o.notify({ asset, newCards: [] })
+  }
+
+  const transcribeQueue = new JobQueue({
+    db,
+    log,
+    secrets: o.secrets,
+    retryDelayMs: o.retryDelayMs,
+    kinds: ['transkrip'],
+    concurrency: 1,
+    maxAttempts: 2,
+    run: async (job) => {
+      const assetId = String(job.payload.assetId)
+      notifyAsset(assetId)
+      await runTranscribe(assetId)
+    },
+    onDone: (job) => notifyAsset(String(job.payload.assetId)),
+    onFinalFailure: (job, message) => {
+      if (message !== MSG_NO_MODEL) log.warn(`Transkrip gagal: ${message}`)
+      notifyAsset(String(job.payload.assetId))
+    }
+  })
+
   return {
     queue,
+    transcribeQueue,
+    /** Setelah model diunduh: jalankan lagi transkrip yang tertunda karena model belum ada. */
+    requeueTranscripts(): number {
+      const rows = db
+        .prepare(
+          `SELECT DISTINCT json_extract(j.payload_json, '$.assetId') AS id FROM jobs j
+           WHERE j.kind = 'transkrip' AND j.status = 'gagal' AND j.last_error = ?
+             AND NOT EXISTS (SELECT 1 FROM jobs k WHERE k.kind = 'transkrip' AND k.status != 'gagal'
+                             AND json_extract(k.payload_json, '$.assetId') = json_extract(j.payload_json, '$.assetId'))`
+        )
+        .all(MSG_NO_MODEL) as { id: string }[]
+      for (const r of rows) transcribeQueue.enqueue('transkrip', { assetId: r.id })
+      return rows.length
+    },
     async importPaths(paths: string[], at: Point): Promise<CardDTO[]> {
       const cards = await importFiles(db, vault, paths, at)
       // Semua sumber impor (drop, isi ZIP, nanti folder dipantau) memberi tahu Board lewat event yang sama.

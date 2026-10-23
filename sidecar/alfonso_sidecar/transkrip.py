@@ -63,6 +63,33 @@ def load_model(path: str):
     return WhisperModel(path, device="cpu", compute_type="int8")
 
 
+SAMPLE_RATE = 16000
+
+
+def decode_audio(path: Path):
+    """Audio → float32 mono 16 kHz. Pengganti faster_whisper.decode_audio, yang memakai argumen
+    av.open yang sudah dihapus di PyAV 19. Mengembalikan array kosong bila file tidak punya suara."""
+    import av
+    import numpy as np
+
+    chunks = []
+    try:
+        with av.open(str(path)) as c:
+            if not c.streams.audio:
+                return np.zeros(0, dtype=np.float32)
+            resampler = av.AudioResampler(format="s16", layout="mono", rate=SAMPLE_RATE)
+            for frame in c.decode(audio=0):
+                for out in resampler.resample(frame):
+                    chunks.append(out.to_ndarray().reshape(-1))
+            for out in resampler.resample(None):
+                chunks.append(out.to_ndarray().reshape(-1))
+    except (av.FFmpegError, OSError, ValueError) as e:
+        raise TranscribeError(type(e).__name__) from e
+    if not chunks:
+        return np.zeros(0, dtype=np.float32)
+    return (np.concatenate(chunks).astype(np.float32) / 32768.0).astype(np.float32)
+
+
 _models: dict[str, object] = {}
 _run_lock = threading.Lock()
 
@@ -70,13 +97,16 @@ _run_lock = threading.Lock()
 def transcribe(models_root: Path, name: str, audio: Path) -> dict:
     if not is_ready(models_root, name):
         raise ModelMissing(name)
+    audio_data = decode_audio(audio)
+    if audio_data.size == 0:
+        return {"text": "", "bahasa": None, "durasi": 0.0, "segmen": 0}
     # Satu transkrip sekaligus: model besar dan CPU/GPU dipakai penuh.
     with _run_lock:
         model = _models.get(name)
         if model is None:
             model = _models[name] = load_model(str(model_dir(models_root, name)))
         try:
-            segments, info = model.transcribe(str(audio), vad_filter=True)
+            segments, info = model.transcribe(audio_data, vad_filter=True)
             parts = [s.text.strip() for s in segments]
         except Exception as e:
             raise TranscribeError(type(e).__name__) from e

@@ -41,4 +41,14 @@ export interface AlfonsoApi {
     onEvent(cb: (e: IngestEvent) => void): () => void;
   };
   search: { query(q: string): Promise<SearchHit[]> };
+  transkrip: {
+    /** Bertanya dulu (dialog), lalu mengunduh model Whisper bila belum ada. */
+    downloadModel(): Promise<TranscriptModelResult>;
+  };
+}
+
+export interface TranscriptModelResult {
+  state: 'siap' | 'batal' | 'gagal'
+  model: string
+  message: string
 }

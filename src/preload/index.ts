@@ -54,6 +54,9 @@ const api: AlfonsoApi = {
   },
   search: {
     query: (q) => ipcRenderer.invoke('search:query', q)
+  },
+  transkrip: {
+    downloadModel: () => ipcRenderer.invoke('transkrip:downloadModel')
   }
 }
 

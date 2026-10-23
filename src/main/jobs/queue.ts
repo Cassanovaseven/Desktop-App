@@ -11,13 +11,17 @@ export interface JobQueueOptions {
   maxAttempts?: number
   retryDelayMs?: number
   secrets?: () => string[]
+  /** Jenis job yang diambil antrean ini; kosong = semua jenis. */
+  kinds?: string[]
   onFinalFailure?: (job: JobRow, message: string) => void
+  /** Dipanggil setelah job ditandai 'selesai'. */
+  onDone?: (job: JobRow) => void
 }
 
 interface DbJob { id: string; kind: string; payload_json: string | null; status: JobStatus; attempts: number }
 
 export class JobQueue {
-  private readonly o: Required<Omit<JobQueueOptions, 'onFinalFailure'>> & Pick<JobQueueOptions, 'onFinalFailure'>
+  private readonly o: Required<Omit<JobQueueOptions, 'onFinalFailure' | 'onDone'>> & Pick<JobQueueOptions, 'onFinalFailure' | 'onDone'>
   private running = false
   private readonly inFlight = new Map<string, Promise<void>>()
   private readonly timers = new Set<NodeJS.Timeout>()
@@ -28,14 +32,16 @@ export class JobQueue {
       concurrency: opts.concurrency ?? 2,
       maxAttempts: opts.maxAttempts ?? 3,
       retryDelayMs: opts.retryDelayMs ?? 1000,
-      secrets: opts.secrets ?? (() => [])
+      secrets: opts.secrets ?? (() => []),
+      kinds: opts.kinds ?? []
     }
   }
 
   start(): void {
     if (this.running) return
     // Job yang tertinggal 'berjalan' karena crash dilanjutkan dari awal.
-    this.o.db.prepare("UPDATE jobs SET status = 'antre', updated_at = ? WHERE status = 'berjalan'").run(new Date().toISOString())
+    const k = this.kindFilter()
+    this.o.db.prepare(`UPDATE jobs SET status = 'antre', updated_at = ? WHERE status = 'berjalan'${k.sql}`).run(new Date().toISOString(), ...k.args)
     this.running = true
     this.pump()
   }
@@ -65,11 +71,17 @@ export class JobQueue {
     this.o.db.prepare(`UPDATE jobs SET ${sets.join(', ')} WHERE id = ?`).run(...args, id)
   }
 
+  private kindFilter(): { sql: string; args: string[] } {
+    const kinds = this.o.kinds
+    return kinds.length ? { sql: ` AND kind IN (${kinds.map(() => '?').join(',')})`, args: kinds } : { sql: '', args: [] }
+  }
+
   private nextJob(): DbJob | undefined {
     const busy = [...this.inFlight.keys()]
     const placeholders = busy.map(() => '?').join(',')
-    const sql = `SELECT id, kind, payload_json, status, attempts FROM jobs WHERE status = 'antre'${busy.length ? ` AND id NOT IN (${placeholders})` : ''} ORDER BY created_at, rowid LIMIT 1`
-    return this.o.db.prepare(sql).get(...busy) as DbJob | undefined
+    const k = this.kindFilter()
+    const sql = `SELECT id, kind, payload_json, status, attempts FROM jobs WHERE status = 'antre'${k.sql}${busy.length ? ` AND id NOT IN (${placeholders})` : ''} ORDER BY created_at, rowid LIMIT 1`
+    return this.o.db.prepare(sql).get(...k.args, ...busy) as DbJob | undefined
   }
 
   private pump(): void {
@@ -91,6 +103,7 @@ export class JobQueue {
     try {
       await this.o.run(job)
       this.setStatus(job.id, 'selesai', { lastError: null })
+      this.o.onDone?.(job)
     } catch (err) {
       const message = redact((err as Error).message || String(err), this.o.secrets())
       // Error permanen (mis. file rusak) tidak akan sembuh dengan dicoba ulang.

@@ -8,6 +8,7 @@ import type { IngestService } from './ingest/service'
 import type { CardPatch, Point, Viewport } from '../shared/board-types'
 import { createLink, deleteCards, deleteLink, getOrCreateDefaultBoard, insertCard, loadBoard, saveCards, saveViewport } from './board/repo'
 import { searchAssets } from './search'
+import type { TranscriptModel } from './transcript-model'
 
 const isPoint = (v: unknown): v is Point =>
   typeof v === 'object' && v !== null && Number.isFinite((v as Point).x) && Number.isFinite((v as Point).y)
@@ -23,6 +24,7 @@ export interface IpcDeps {
   themes: ThemeTokens[]
   sidecar: SidecarManager
   ingest: IngestService
+  transcriptModel: TranscriptModel
 }
 
 export function registerIpc(deps: IpcDeps): void {
@@ -87,6 +89,9 @@ export function registerIpc(deps: IpcDeps): void {
     assert(typeof q === 'string')
     return searchAssets(db, q)
   })
+
+  // Dialog konfirmasi ada di proses utama (transcript-model.confirm), bukan di renderer.
+  ipcMain.handle('transkrip:downloadModel', () => deps.transcriptModel.download())
 
   ipcMain.handle('layout:load', () => getSetting(db, 'layout.dockview'))
   ipcMain.handle('layout:save', (_e, json: unknown) => {

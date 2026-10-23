@@ -23,14 +23,15 @@ beforeEach(() => {
     vault: { getPath: vi.fn(async () => 'C:/Vault'), openFolder: vi.fn(async () => {}) },
     theme: { list: vi.fn(async () => themes), getActiveId: vi.fn(async () => 'alfonso-gelap'), setActive: vi.fn(async () => {}) },
     sidecar: { getStatus: vi.fn(async () => ({ state: 'ready' as const, port: 51234, message: null, restarts: 0 })), onStatus: vi.fn(() => () => {}) },
-    layout: { load: vi.fn(async () => null), save: vi.fn(async () => {}) }
+    layout: { load: vi.fn(async () => null), save: vi.fn(async () => {}) },
+    transkrip: { downloadModel: vi.fn(async () => ({ state: 'siap' as const, model: 'small', message: 'Model transkrip siap.' })) }
   } as unknown as AlfonsoApi
   cmds = buildCommands({ themes, api, resetLayout, showMessage, applyThemeById, addNote, openSearch })
 })
 afterEach(() => cleanup())
 
 test('daftar perintah lengkap', () => {
-  expect(cmds.map(c => c.id)).toEqual(['board.addNote', 'search.files', 'theme.switch:alfonso-gelap', 'theme.switch:alfonso-terang', 'vault.open', 'sidecar.status', 'layout.reset'])
+  expect(cmds.map(c => c.id)).toEqual(['board.addNote', 'search.files', 'theme.switch:alfonso-gelap', 'theme.switch:alfonso-terang', 'vault.open', 'sidecar.status', 'transkrip.download', 'layout.reset'])
   expect(cmds[3].label).toBe('Ganti tema: Alfonso Terang')
 })
 test('filter tidak peka huruf dan per kata', () => {
@@ -68,4 +69,9 @@ test('status sidecar dan buka vault', async () => {
 test('Tambah catatan dan Cari isi file memanggil konteks', () => {
   cmds.find(c => c.id === 'board.addNote')!.run(); cmds.find(c => c.id === 'search.files')!.run()
   expect(addNote).toHaveBeenCalled(); expect(openSearch).toHaveBeenCalled()
+})
+test('Unduh model transkrip: pesan saat mulai dan hasilnya', async () => {
+  await cmds.find(c => c.id === 'transkrip.download')!.run()
+  expect(api.transkrip.downloadModel).toHaveBeenCalled()
+  expect(showMessage.mock.calls.map(c => c[0])).toEqual(['Menyiapkan model transkrip…', 'Model transkrip siap.'])
 })

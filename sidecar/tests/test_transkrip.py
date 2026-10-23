@@ -85,3 +85,31 @@ def test_transkrip_gagal_422(client, make, monkeypatch):
 def test_tanpa_folder_model_503(vault, make):
     c = TestClient(create_app(TOKEN, vault_root=str(vault)))
     assert c.get("/models/whisper", headers=H).status_code == 503
+
+
+def test_decode_audio_16khz_mono_tanpa_model(make, vault):
+    # faster-whisper 1.2.1 decode_audio tidak cocok dengan PyAV 19, jadi audio didecode sendiri.
+    audio = transkrip.decode_audio(vault / make("wav"))
+    assert audio.dtype.name == "float32" and audio.ndim == 1
+    assert abs(len(audio) - 32000) < 400
+    assert 0.1 < float(abs(audio).max()) <= 1.0
+
+
+def test_video_tanpa_suara_transkrip_kosong(client, make):
+    client.post("/models/whisper/download", headers=H, json={"model": "small"})
+    j = client.post("/transcribe", headers=H, json={"path": make("mp4"), "asset_id": "a1"}).json()
+    assert j["text"] == "" and j["segmen"] == 0
+
+
+def test_model_menerima_array_bukan_path(client, make, monkeypatch):
+    seen = {}
+
+    class Cek(FakeModel):
+        def transcribe(self, audio, **kw):
+            seen["type"] = type(audio).__name__
+            return super().transcribe(audio, **kw)
+
+    monkeypatch.setattr(transkrip, "load_model", Cek)
+    client.post("/models/whisper/download", headers=H, json={"model": "small"})
+    client.post("/transcribe", headers=H, json={"path": make("wav"), "asset_id": "a1"})
+    assert seen["type"] == "ndarray"

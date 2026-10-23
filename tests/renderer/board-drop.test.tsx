@@ -16,7 +16,7 @@ beforeEach(() => {
       saveCards: vi.fn(async () => {}), createNote: vi.fn(async () => note('n1', 'baru')), deleteCards: vi.fn(), link: vi.fn(), unlink: vi.fn(), saveViewport: vi.fn()
     },
     ingest: {
-      dropFiles: vi.fn(async () => [{ ...note('f1'), type: 'file', assetId: 'a1', asset: { id: 'a1', originalName: 'laporan.pdf', mime: null, sizeBytes: 1, status: 'memproses', previewUrl: null, error: null } }]),
+      dropFiles: vi.fn(async () => [{ ...note('f1'), type: 'file', assetId: 'a1', asset: { id: 'a1', originalName: 'laporan.pdf', mime: null, sizeBytes: 1, status: 'memproses', previewUrl: null, error: null, transkrip: null } }]),
       pasteText: vi.fn(async () => ({ ...note('t1'), type: 'tautan', content: 'https://contoh.id' })),
       retry: vi.fn(),
       onEvent: vi.fn((cb) => { emit = cb; return () => {} })
@@ -51,7 +51,7 @@ test('event ingest memperbarui status kartu', async () => {
   const board = await screen.findByTestId('board')
   drop(board, [new File(['x'], 'laporan.pdf')])
   await screen.findByText('Memproses…')
-  act(() => emit({ asset: { id: 'a1', originalName: 'laporan.pdf', mime: null, sizeBytes: 1, status: 'gagal', previewUrl: null, error: 'PDF rusak atau terenkripsi' }, newCards: [] }))
+  act(() => emit({ asset: { id: 'a1', originalName: 'laporan.pdf', mime: null, sizeBytes: 1, status: 'gagal', previewUrl: null, error: 'PDF rusak atau terenkripsi', transkrip: null }, newCards: [] }))
   expect(await screen.findByText('Gagal ekstrak')).toBeTruthy()
 })
 test('drop gagal menampilkan pesan', async () => {
