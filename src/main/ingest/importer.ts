@@ -68,7 +68,14 @@ async function copyIntoVault(vault: VaultPaths, src: string, sha: string): Promi
   return rel
 }
 
-export async function importFiles(db: Database.Database, vault: VaultPaths, paths: string[], at: Point): Promise<CardDTO[]> {
+export interface ImportOptions {
+  /** File yang hash-nya sudah ada di vault dilewati (tanpa kartu baru); dipakai folder dipantau. */
+  skipKnown?: boolean
+  /** Tag tambahan untuk asset baru, mis. sumber:folder. */
+  tags?: string[]
+}
+
+export async function importFiles(db: Database.Database, vault: VaultPaths, paths: string[], at: Point, opts: ImportOptions = {}): Promise<CardDTO[]> {
   const board = getOrCreateDefaultBoard(db)
   const files: string[] = []
   let folders = 0
@@ -80,11 +87,13 @@ export async function importFiles(db: Database.Database, vault: VaultPaths, path
   if (files.length === 0 && folders > 0) throw new Error(MSG_FOLDER)
 
   const cards: CardDTO[] = []
-  for (const [i, src] of files.entries()) {
+  let i = 0
+  for (const src of files) {
     const sha = await sha256File(src)
     const kind = kindForFile(src)
     const size = (await fs.promises.stat(src)).size
     let assetId = findAssetBySha(db, sha)?.id
+    if (assetId && opts.skipKnown) continue
     if (!assetId) {
       const vaultPath = await copyIntoVault(vault, src, sha)
       // Cek ulang: impor lain bisa saja menyelesaikan file yang sama selama penyalinan async.
@@ -92,12 +101,15 @@ export async function importFiles(db: Database.Database, vault: VaultPaths, path
         const existing = findAssetBySha(db, sha)
         if (existing) return existing.id
         const asset = insertAsset(db, { sha256: sha, vaultPath, originalName: path.basename(src), mime: kind.mime, sizeBytes: size })
+        const tag = db.prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag) VALUES (?, ?)')
+        for (const t of opts.tags ?? []) tag.run(asset.id, t)
         insertJob(db, 'ekstrak', { assetId: asset.id })
         return asset.id
       })()
     }
     const col = i % 5
     const row = Math.floor(i / 5)
+    i++
     cards.push(
       insertCard(db, {
         boardId: board.id,

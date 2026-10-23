@@ -40,6 +40,8 @@ export function buildCommands(ctx: CommandContext): Command[] {
         ctx.showMessage((await ctx.api.transkrip.downloadModel()).message)
       }
     },
+    { id: 'watch.add', label: 'Pantau folder…', run: async () => ctx.showMessage((await ctx.api.watch.add()).message) },
+    { id: 'watch.remove', label: 'Berhenti memantau folder…', run: async () => ctx.showMessage((await ctx.api.watch.remove()).message) },
     { id: 'layout.reset', label: 'Reset tata letak', run: () => ctx.resetLayout() }
   ]
 }

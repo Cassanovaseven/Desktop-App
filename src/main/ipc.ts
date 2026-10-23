@@ -1,4 +1,6 @@
-import { ipcMain, shell, type BrowserWindow } from 'electron'
+import { dialog, ipcMain, shell, type BrowserWindow, type MessageBoxOptions } from 'electron'
+import fs from 'fs'
+import path from 'path'
 import type Database from 'better-sqlite3'
 import type { ThemeTokens, VaultPaths } from '../shared/types'
 import { getSetting, setSetting } from './db/database'
@@ -9,6 +11,7 @@ import type { CardPatch, Point, Viewport } from '../shared/board-types'
 import { createLink, deleteCards, deleteLink, getOrCreateDefaultBoard, insertCard, loadBoard, saveCards, saveViewport } from './board/repo'
 import { searchAssets } from './search'
 import type { TranscriptModel } from './transcript-model'
+import type { FolderWatcher } from './ingest/watcher'
 
 const isPoint = (v: unknown): v is Point =>
   typeof v === 'object' && v !== null && Number.isFinite((v as Point).x) && Number.isFinite((v as Point).y)
@@ -25,6 +28,7 @@ export interface IpcDeps {
   sidecar: SidecarManager
   ingest: IngestService
   transcriptModel: TranscriptModel
+  watcher: FolderWatcher
 }
 
 export function registerIpc(deps: IpcDeps): void {
@@ -72,9 +76,45 @@ export function registerIpc(deps: IpcDeps): void {
     saveViewport(db, v as Viewport)
   })
 
-  ipcMain.handle('ingest:importPaths', (_e, paths: unknown, at: unknown) => {
+  const ask = async (opts: MessageBoxOptions): Promise<number> => {
+    const w = deps.getWindow()
+    return (w ? await dialog.showMessageBox(w, opts) : await dialog.showMessageBox(opts)).response
+  }
+
+  ipcMain.handle('ingest:importPaths', async (_e, paths: unknown, at: unknown) => {
     assert(isStringArray(paths) && isPoint(at))
-    return deps.ingest.importPaths(paths, at)
+    const files: string[] = []
+    for (const p of paths) {
+      const st = await fs.promises.stat(p).catch(() => null)
+      if (!st?.isDirectory()) {
+        files.push(p)
+        continue
+      }
+      // Folder yang di-drop ditawarkan untuk dipantau, bukan diimpor sekaligus.
+      const yes = (await ask({ type: 'question', title: 'Alfonso', message: `Pantau folder "${path.basename(p)}"?`, detail: 'File di folder ini dan file baru yang masuk akan disalin ke vault. File aslinya tidak diubah.', buttons: ['Pantau', 'Batal'], defaultId: 0, cancelId: 1 })) === 0
+      if (yes) await deps.watcher.add(p)
+    }
+    return files.length ? deps.ingest.importPaths(files, at) : []
+  })
+
+  ipcMain.handle('watch:add', async () => {
+    const w = deps.getWindow()
+    const opts = { title: 'Pilih folder yang dipantau', properties: ['openDirectory' as const] }
+    const r = w ? await dialog.showOpenDialog(w, opts) : await dialog.showOpenDialog(opts)
+    if (r.canceled || r.filePaths.length === 0) return { message: 'Batal.' }
+    try {
+      return { message: `Memantau folder: ${await deps.watcher.add(r.filePaths[0])}` }
+    } catch (err) {
+      return { message: (err as Error).message }
+    }
+  })
+  ipcMain.handle('watch:remove', async () => {
+    const dirs = deps.watcher.list().slice(0, 8)
+    if (dirs.length === 0) return { message: 'Tidak ada folder yang dipantau.' }
+    const i = await ask({ type: 'question', title: 'Alfonso', message: 'Berhenti memantau folder yang mana?', detail: 'File yang sudah masuk vault tetap ada.', buttons: [...dirs.map((d) => path.basename(d) || d), 'Batal'], cancelId: dirs.length })
+    if (i >= dirs.length) return { message: 'Batal.' }
+    await deps.watcher.remove(dirs[i])
+    return { message: `Berhenti memantau: ${dirs[i]}` }
   })
   ipcMain.handle('ingest:pasteText', (_e, text: unknown, at: unknown) => {
     assert(typeof text === 'string' && text.length <= 1_000_000 && isPoint(at))

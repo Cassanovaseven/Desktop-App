@@ -41,6 +41,12 @@ export interface AlfonsoApi {
     onEvent(cb: (e: IngestEvent) => void): () => void;
   };
   search: { query(q: string): Promise<SearchHit[]> };
+  watch: {
+    /** Memilih folder lewat dialog di proses utama, lalu memantaunya. */
+    add(): Promise<{ message: string }>;
+    /** Memilih folder yang berhenti dipantau lewat dialog di proses utama. */
+    remove(): Promise<{ message: string }>;
+  };
   transkrip: {
     /** Bertanya dulu (dialog), lalu mengunduh model Whisper bila belum ada. */
     downloadModel(): Promise<TranscriptModelResult>;

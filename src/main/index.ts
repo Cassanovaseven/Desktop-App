@@ -13,6 +13,7 @@ import { registerVaultScheme, handleVaultScheme } from './vault-protocol'
 import { createIngestService, type IngestService } from './ingest/service'
 import { createSidecarExtractor, createSidecarModelClient, createSidecarTranscriber } from './sidecar-client'
 import { createTranscriptModel } from './transcript-model'
+import { createFolderWatcher, type FolderWatcher } from './ingest/watcher'
 import { DEFAULT_SIZE, getOrCreateDefaultBoard, insertCard } from './board/repo'
 
 // Harus sebelum `ready`; foldernya dibuat dulu.
@@ -30,6 +31,7 @@ let win: BrowserWindow | null = null
 let db: Database.Database | null = null
 let sidecar: SidecarManager | null = null
 let ingest: IngestService | null = null
+let watcher: FolderWatcher | null = null
 let quitting = false
 
 function createWindow(): BrowserWindow {
@@ -111,6 +113,14 @@ async function bootstrap(): Promise<void> {
     onReady: () => service.requeueTranscripts()
   })
   modelName = transcriptModel.modelName
+
+  const folderWatcher = createFolderWatcher({
+    db: appDb,
+    vaultRoot: vault.root,
+    log,
+    importPaths: (paths, at) => service.importPaths(paths, at, { skipKnown: true, tags: ['sumber:folder'] })
+  })
+  watcher = folderWatcher
   // Antrean baru berjalan setelah sidecar siap; job yang masuk sebelumnya menunggu dengan status 'antre'.
   manager.onStatus((s) => {
     if (s.state === 'ready') {
@@ -119,13 +129,14 @@ async function bootstrap(): Promise<void> {
     }
   })
 
-  registerIpc({ getWindow: () => win, vault, db, themes, sidecar: manager, ingest: service, transcriptModel })
+  registerIpc({ getWindow: () => win, vault, db, themes, sidecar: manager, ingest: service, transcriptModel, watcher: folderWatcher })
 
   // Kait khusus tes e2e, hanya ada di proses utama dan hanya bila ALFONSO_E2E=1 (tidak terjangkau renderer).
   if (process.env.ALFONSO_E2E === '1') {
     const testDb = db
     ;(globalThis as Record<string, unknown>).__alfonsoTest = {
       importPaths: (paths: string[], at: { x: number; y: number }) => service.importPaths(paths, at),
+      watchFolder: (dir: string) => folderWatcher.add(dir),
       fillBoard: (count: number) => {
         const board = getOrCreateDefaultBoard(testDb)
         testDb.transaction(() => {
@@ -137,8 +148,9 @@ async function bootstrap(): Promise<void> {
     }
   }
   win = createWindow()
-  // Jendela tidak menunggu sidecar siap.
+  // Jendela tidak menunggu sidecar siap; job dari folder dipantau menunggu di antrean.
   void manager.start()
+  void folderWatcher.start()
 }
 
 app.whenReady().then(bootstrap)
@@ -151,6 +163,7 @@ app.on('before-quit', (e) => {
   e.preventDefault()
   void (async () => {
     try {
+      await watcher?.close()
       await Promise.all([ingest?.queue.stop(), ingest?.transcribeQueue.stop()])
       await sidecar?.stop()
       db?.close()

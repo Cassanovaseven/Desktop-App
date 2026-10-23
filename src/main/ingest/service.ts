@@ -6,7 +6,7 @@ import type { AssetStatus, CardDTO, IngestEvent, Point } from '../../shared/boar
 import type { VaultPaths } from '../../shared/types'
 import type { Logger } from '../logger'
 import { JobQueue } from '../jobs/queue'
-import { importFiles, kindForFile } from './importer'
+import { importFiles, kindForFile, type ImportOptions } from './importer'
 import { cardsForAsset, getAsset, getCard, getOrCreateDefaultBoard, insertCard, DEFAULT_SIZE, MSG_NO_MODEL } from '../board/repo'
 import { indexAsset } from '../search'
 
@@ -44,7 +44,13 @@ function isSidecarTempDir(dir: string): boolean {
 export function createIngestService(o: IngestServiceOptions) {
   const { db, vault, log } = o
 
-  const tagsFor = (name: string): string[] => [`jenis:${kindForFile(name).jenis}`, 'jalur:impor']
+  // Tag otomatis + tag yang sudah tersimpan (mis. sumber:folder dari impor folder dipantau).
+  const tagsFor = (name: string, assetId?: string): string[] => {
+    const base = [`jenis:${kindForFile(name).jenis}`, 'jalur:impor']
+    if (!assetId) return base
+    const saved = (db.prepare('SELECT tag FROM asset_tags WHERE asset_id = ?').all(assetId) as { tag: string }[]).map((r) => r.tag)
+    return [...new Set([...base, ...saved])]
+  }
 
   const saveTags = (assetId: string, tags: string[]): void => {
     const stmt = db.prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag) VALUES (?, ?)')
@@ -86,7 +92,7 @@ export function createIngestService(o: IngestServiceOptions) {
     if (!row) throw new PermanentError('Asset tidak ditemukan')
     const result = await o.extract(row.vault_path, assetId)
     const newCards = kindForFile(row.original_name).jenis === 'arsip' ? await expandZip(assetId, result.meta) : []
-    const tags = tagsFor(row.original_name)
+    const tags = tagsFor(row.original_name, assetId)
     saveTags(assetId, tags)
     indexAsset(db, assetId, result.text, tags, 'siap', result.thumb)
     // Transkrip dijalankan di antrean terpisah (satu per satu) supaya video panjang tidak menahan file lain.
@@ -98,7 +104,7 @@ export function createIngestService(o: IngestServiceOptions) {
     const row = assetRow(assetId)
     if (!row || !o.transcribe) throw new PermanentError('Asset tidak ditemukan')
     const { text } = await o.transcribe(row.vault_path, assetId)
-    indexAsset(db, assetId, text, tagsFor(row.original_name), row.extract_status)
+    indexAsset(db, assetId, text, tagsFor(row.original_name, assetId), row.extract_status)
   }
 
   const queue = new JobQueue({
@@ -116,7 +122,7 @@ export function createIngestService(o: IngestServiceOptions) {
       const row = db.prepare('SELECT original_name FROM assets WHERE id = ?').get(assetId) as { original_name: string } | undefined
       if (!row) return
       // Nama file tetap bisa dicari walau isinya gagal diekstrak.
-      indexAsset(db, assetId, '', tagsFor(row.original_name), 'gagal')
+      indexAsset(db, assetId, '', tagsFor(row.original_name, assetId), 'gagal')
       log.warn(`Ekstraksi ${row.original_name} gagal: ${message}`)
       o.notify({ asset: getAsset(db, assetId)!, newCards: [] })
     }
@@ -163,8 +169,8 @@ export function createIngestService(o: IngestServiceOptions) {
       for (const r of rows) transcribeQueue.enqueue('transkrip', { assetId: r.id })
       return rows.length
     },
-    async importPaths(paths: string[], at: Point): Promise<CardDTO[]> {
-      const cards = await importFiles(db, vault, paths, at)
+    async importPaths(paths: string[], at: Point, opts?: ImportOptions): Promise<CardDTO[]> {
+      const cards = await importFiles(db, vault, paths, at, opts)
       // Semua sumber impor (drop, isi ZIP, nanti folder dipantau) memberi tahu Board lewat event yang sama.
       for (const c of cards) if (c.asset) o.notify({ asset: c.asset, newCards: [c] })
       queue.kick()

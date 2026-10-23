@@ -24,6 +24,7 @@ beforeEach(() => {
     theme: { list: vi.fn(async () => themes), getActiveId: vi.fn(async () => 'alfonso-gelap'), setActive: vi.fn(async () => {}) },
     sidecar: { getStatus: vi.fn(async () => ({ state: 'ready' as const, port: 51234, message: null, restarts: 0 })), onStatus: vi.fn(() => () => {}) },
     layout: { load: vi.fn(async () => null), save: vi.fn(async () => {}) },
+    watch: { add: vi.fn(async () => ({ message: 'Memantau folder: C:/Unduhan' })), remove: vi.fn(async () => ({ message: 'Tidak ada folder yang dipantau.' })) },
     transkrip: { downloadModel: vi.fn(async () => ({ state: 'siap' as const, model: 'small', message: 'Model transkrip siap.' })) }
   } as unknown as AlfonsoApi
   cmds = buildCommands({ themes, api, resetLayout, showMessage, applyThemeById, addNote, openSearch })
@@ -31,7 +32,7 @@ beforeEach(() => {
 afterEach(() => cleanup())
 
 test('daftar perintah lengkap', () => {
-  expect(cmds.map(c => c.id)).toEqual(['board.addNote', 'search.files', 'theme.switch:alfonso-gelap', 'theme.switch:alfonso-terang', 'vault.open', 'sidecar.status', 'transkrip.download', 'layout.reset'])
+  expect(cmds.map(c => c.id)).toEqual(['board.addNote', 'search.files', 'theme.switch:alfonso-gelap', 'theme.switch:alfonso-terang', 'vault.open', 'sidecar.status', 'transkrip.download', 'watch.add', 'watch.remove', 'layout.reset'])
   expect(cmds[3].label).toBe('Ganti tema: Alfonso Terang')
 })
 test('filter tidak peka huruf dan per kata', () => {
@@ -74,4 +75,9 @@ test('Unduh model transkrip: pesan saat mulai dan hasilnya', async () => {
   await cmds.find(c => c.id === 'transkrip.download')!.run()
   expect(api.transkrip.downloadModel).toHaveBeenCalled()
   expect(showMessage.mock.calls.map(c => c[0])).toEqual(['Menyiapkan model transkrip…', 'Model transkrip siap.'])
+})
+test('Pantau folder dan berhenti memantau menampilkan hasil dari proses utama', async () => {
+  await cmds.find(c => c.id === 'watch.add')!.run()
+  await cmds.find(c => c.id === 'watch.remove')!.run()
+  expect(showMessage.mock.calls.map(c => c[0])).toEqual(['Memantau folder: C:/Unduhan', 'Tidak ada folder yang dipantau.'])
 })
