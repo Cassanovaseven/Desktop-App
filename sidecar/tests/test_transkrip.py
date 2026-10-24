@@ -146,3 +146,40 @@ def test_model_cpu_memakai_semua_inti(monkeypatch):
     monkeypatch.setattr(transkrip.os, "cpu_count", lambda: 12)
     REAL_LOAD_MODEL("x")
     assert made == {"device": "cpu", "compute_type": "int8", "cpu_threads": 12}
+
+
+def test_dll_cuda_dari_paket_nvidia_didaftarkan_di_windows(tmp_path, monkeypatch):
+    for lib in ("cublas", "cudnn", "cuda_nvrtc"):
+        (tmp_path / "nvidia" / lib / "bin").mkdir(parents=True)
+    (tmp_path / "nvidia" / "tanpa_bin").mkdir()
+    added = []
+    monkeypatch.setenv("PATH", "C:\\Windows")
+    dirs = transkrip.add_cuda_dll_dirs([str(tmp_path)], platform="win32", add=added.append)
+    want = sorted(str(tmp_path / "nvidia" / lib / "bin") for lib in ("cublas", "cuda_nvrtc", "cudnn"))
+    assert dirs == want and added == want
+    # cudnn64_9.dll memuat sub-library lewat PATH, jadi PATH juga diisi.
+    assert transkrip.os.environ["PATH"].split(transkrip.os.pathsep)[:3] == want
+    assert transkrip.add_cuda_dll_dirs([str(tmp_path)], platform="linux", add=added.append) == []
+
+
+def test_gpu_gagal_saat_transkrip_kembali_ke_cpu(client, make, monkeypatch):
+    calls = []
+
+    class GpuRusak:
+        on_gpu = True
+
+        def transcribe(self, audio, **kw):
+            raise RuntimeError("Could not load library cudnn_ops64_9.dll")
+
+    def load(path, gpu=True):
+        calls.append(gpu)
+        return GpuRusak() if gpu else FakeModel(path)
+
+    monkeypatch.setattr(transkrip, "load_model", load)
+    client.post("/models/whisper/download", headers=H, json={"model": "small"})
+    j = client.post("/transcribe", headers=H, json={"path": make("wav"), "asset_id": "a1"}).json()
+    assert j["text"] == "Selamat pagi\nrapat dimulai"
+    assert calls == [True, False]
+    # Transkrip berikutnya langsung memakai model CPU.
+    client.post("/transcribe", headers=H, json={"path": make("wav"), "asset_id": "a2"})
+    assert calls == [True, False]

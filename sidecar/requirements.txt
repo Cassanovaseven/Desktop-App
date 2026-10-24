@@ -11,3 +11,7 @@ onnxruntime==1.31.0
 rapidocr==3.10.0
 av==19.0.2
 faster-whisper==1.2.1
+# GPU untuk transkrip (Windows): cuBLAS + cuDNN untuk CTranslate2. Tanpa GPU NVIDIA, transkrip tetap jalan di CPU.
+nvidia-cuda-nvrtc-cu12==12.9.86; sys_platform == "win32"
+nvidia-cublas-cu12==12.9.2.10; sys_platform == "win32"
+nvidia-cudnn-cu12==9.27.0.42; sys_platform == "win32"
