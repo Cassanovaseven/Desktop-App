@@ -1,15 +1,23 @@
 import hmac
 import re
 from pathlib import Path
+from typing import Any
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from . import __version__, transkrip
 from .extract import ExtractError, extract_file
+from .generate import GenError
+from .generate import higgsfield
 
 TOKEN_HEADER = "X-Alfonso-Token"
+KEY_HEADER = "X-Alfonso-Key"
+HIGGSFIELD_URL = "https://api.higgsfield.ai"
+# Folder vault yang boleh dibaca sidecar: file impor dan hasil generate.
+READABLE = ("files", "generated")
 ASSET_ID = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 
 
@@ -26,11 +34,30 @@ class ModelRequest(BaseModel):
     model: str = transkrip.DEFAULT_MODEL
 
 
+class HiggsfieldSubmit(BaseModel):
+    model: str
+    arguments: dict[str, Any]
+    reference_path: str | None = None
+    reference_key: str = "image_url"
+
+
+class HiggsfieldWait(BaseModel):
+    request_id: str
+
+
 def err(status: int, detail: str) -> JSONResponse:
     return JSONResponse(status_code=status, content={"detail": detail})
 
 
-def create_app(token: str, vault_root: str | None = None, models_root: str | None = None) -> FastAPI:
+def create_app(
+    token: str,
+    vault_root: str | None = None,
+    models_root: str | None = None,
+    higgsfield_url: str = HIGGSFIELD_URL,
+    http_transport: httpx.BaseTransport | None = None,
+    poll_delay: float = 3.0,
+    wait_timeout: float = 15 * 60,
+) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     expected = token.encode()
     root = Path(vault_root).resolve() if vault_root else None
@@ -48,17 +75,50 @@ def create_app(token: str, vault_root: str | None = None, models_root: str | Non
     def health():
         return {"status": "ok", "version": __version__}
 
-    def vault_file(req: ExtractRequest) -> Path | JSONResponse:
+    def vault_path(rel_path: str) -> Path | JSONResponse:
         if root is None:
             return err(503, "vault belum diatur")
-        rel = Path(req.path)
-        # Hanya file di dalam vault/files/ yang boleh dibaca.
+        rel = Path(rel_path)
+        # Hanya file di dalam vault/files/ dan vault/generated/ yang boleh dibaca.
         target = (root / rel).resolve()
-        if rel.is_absolute() or not target.is_relative_to(root / "files") or not ASSET_ID.match(req.asset_id):
+        if rel.is_absolute() or not any(target.is_relative_to(root / d) for d in READABLE):
             return err(400, "path tidak diizinkan")
         if not target.is_file():
             return err(404, "file tidak ditemukan")
         return target
+
+    def vault_file(req: ExtractRequest) -> Path | JSONResponse:
+        if not ASSET_ID.match(req.asset_id):
+            return err(400, "path tidak diizinkan")
+        return vault_path(req.path)
+
+    def hf_client(request: Request) -> higgsfield.SyncClient:
+        key = request.headers.get(KEY_HEADER, "")
+        if not key or len(key) > 1100:
+            raise GenError(400, "Kunci Higgsfield belum diatur.")
+        return higgsfield.make_client(key, higgsfield_url, http_transport)
+
+    @app.exception_handler(GenError)
+    async def gen_error(_request: Request, e: GenError):
+        return err(e.status, e.detail)
+
+    @app.post("/generate/higgsfield/submit")
+    def hf_submit(req: HiggsfieldSubmit, request: Request):
+        client = hf_client(request)
+        ref = None
+        if req.reference_path:
+            ref = vault_path(req.reference_path)
+            if isinstance(ref, JSONResponse):
+                return ref
+        if not re.match(r"^[A-Za-z_][\w-]{0,39}$", req.reference_key):
+            return err(400, "nama parameter referensi tidak valid")
+        return {"request_id": higgsfield.submit(client, req.model, req.arguments, ref, req.reference_key)}
+
+    @app.post("/generate/higgsfield/wait")
+    def hf_wait(req: HiggsfieldWait, request: Request):
+        client = hf_client(request)
+        path = higgsfield.wait(client, req.request_id, wait_timeout, poll_delay, http_transport)
+        return {"path": str(path), "ext": path.suffix.lstrip("."), "temp_dir": str(path.parent)}
 
     @app.post("/extract")
     def extract(req: ExtractRequest):
