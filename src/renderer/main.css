@@ -267,3 +267,336 @@ body {
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
+
+/* Fase 2: panel Proyek, Library, Inspector. */
+.projects-panel,
+.library-panel,
+.inspector-panel {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.92em;
+}
+
+.projects-panel,
+.inspector-panel {
+  overflow-y: auto;
+}
+
+.projects-panel button,
+.library-panel button,
+.library-panel select,
+.library-panel input,
+.inspector-panel button,
+.inspector-panel input,
+.tree-input {
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+}
+
+.projects-panel button:hover,
+.library-panel button:hover,
+.inspector-panel button:hover {
+  border-color: var(--color-accent);
+}
+
+.panel-toolbar {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.panel-error {
+  margin: var(--space-2);
+  color: var(--color-danger);
+}
+
+.tree,
+.tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tree > li {
+  padding: var(--space-1) var(--space-2);
+}
+
+.tree-project {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  padding: var(--space-1) 0;
+}
+
+.projects-panel .tree-add {
+  padding: 0 var(--space-2);
+}
+
+.projects-panel .tree-board {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+  padding-left: var(--space-4);
+}
+
+.projects-panel .tree-board.active {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.tree-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin: var(--space-1) 0;
+}
+
+.library-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.library-row,
+.library-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.chip[aria-pressed='true'],
+.library-row button[aria-pressed='true'] {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+.chip-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.chip-tag.auto {
+  color: var(--color-text-muted);
+}
+
+.chip-tag button {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.library-count {
+  color: var(--color-text-muted);
+}
+
+.library-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.library-items {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  box-sizing: border-box;
+}
+
+.library-items.list {
+  gap: 0;
+  padding: 0 var(--space-2);
+}
+
+.library-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  cursor: grab;
+}
+
+.library-item.selected {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.library-item.placeholder {
+  opacity: 0.4;
+}
+
+.library-thumb {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+}
+
+.library-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.library-meta {
+  padding: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.library-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.library-status {
+  color: var(--color-warning);
+  font-size: 0.9em;
+}
+
+.library-status.danger {
+  color: var(--color-danger);
+}
+
+.library-items.list .library-item {
+  flex-direction: row;
+  align-items: center;
+  border-radius: 0;
+  border-width: 0 0 1px 0;
+  background: transparent;
+}
+
+.library-items.list .library-thumb {
+  width: 40px;
+  height: 36px;
+  flex: none;
+  font-size: 0.7em;
+}
+
+.library-items.list .search-snippet {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Wadah ilustrasi keadaan kosong (spec 9.4); diisi setelah gaya visual ditetapkan. */
+.empty-state {
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.inspector-panel {
+  padding: var(--space-3);
+}
+
+.inspector-preview {
+  max-width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.inspector-title {
+  font-size: 1.1em;
+  margin: var(--space-2) 0;
+  word-break: break-word;
+}
+
+.inspector-panel h3 {
+  font-size: 0.95em;
+  margin: var(--space-4) 0 var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.inspector-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+.inspector-facts dt {
+  color: var(--color-text-muted);
+}
+
+.inspector-facts dd {
+  margin: 0;
+}
+
+.inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.inspector-failed {
+  margin-top: var(--space-2);
+  color: var(--color-danger);
+}
+
+.inspector-muted {
+  color: var(--color-text-muted);
+}
+
+.inspector-usages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.inspector-usages button {
+  width: 100%;
+  text-align: left;
+}
+
+.inspector-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-family-mono);
+  font-size: 0.85em;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--color-bg);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.tag-list {
+  list-style: none;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.tag-editor input {
+  width: 100%;
+  box-sizing: border-box;
+}
