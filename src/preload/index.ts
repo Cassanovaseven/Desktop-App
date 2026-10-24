@@ -26,14 +26,32 @@ const api: AlfonsoApi = {
     load: () => ipcRenderer.invoke('layout:load'),
     save: (json) => ipcRenderer.invoke('layout:save', json)
   },
+  projects: {
+    list: () => ipcRenderer.invoke('projects:list'),
+    create: (name) => ipcRenderer.invoke('projects:create', name),
+    rename: (id, name) => ipcRenderer.invoke('projects:rename', id, name),
+    createBoard: (projectId, name) => ipcRenderer.invoke('projects:createBoard', projectId, name),
+    renameBoard: (id, name) => ipcRenderer.invoke('projects:renameBoard', id, name),
+    getActiveBoardId: () => ipcRenderer.invoke('projects:getActiveBoardId'),
+    setActiveBoard: (id) => ipcRenderer.invoke('projects:setActiveBoard', id)
+  },
+  library: {
+    query: (q) => ipcRenderer.invoke('library:query', q),
+    tags: () => ipcRenderer.invoke('library:tags'),
+    detail: (assetId) => ipcRenderer.invoke('library:detail', assetId),
+    addTag: (assetId, tag) => ipcRenderer.invoke('library:addTag', assetId, tag),
+    removeTag: (assetId, tag) => ipcRenderer.invoke('library:removeTag', assetId, tag),
+    showInFolder: (assetId) => ipcRenderer.invoke('library:showInFolder', assetId)
+  },
   board: {
-    open: () => ipcRenderer.invoke('board:open'),
+    open: (boardId) => ipcRenderer.invoke('board:open', boardId),
+    addAssetCard: (assetId, at) => ipcRenderer.invoke('board:addAssetCard', assetId, at),
     saveCards: (patches) => ipcRenderer.invoke('board:saveCards', patches),
     createNote: (at) => ipcRenderer.invoke('board:createNote', at),
     deleteCards: (ids) => ipcRenderer.invoke('board:deleteCards', ids),
     link: (fromId, toId) => ipcRenderer.invoke('board:link', fromId, toId),
     unlink: (linkId) => ipcRenderer.invoke('board:unlink', linkId),
-    saveViewport: (v) => ipcRenderer.invoke('board:saveViewport', v)
+    saveViewport: (v, boardId) => ipcRenderer.invoke('board:saveViewport', v, boardId)
   },
   ingest: {
     // Path file hanya dibaca di preload lalu langsung dikirim ke proses utama; renderer tidak menerimanya.

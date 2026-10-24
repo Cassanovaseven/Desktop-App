@@ -1,3 +1,4 @@
+import type { AssetDetail, BoardSummary, LibraryPage, LibraryQuery, ProjectDTO, TagCount } from './library-types'
 import type { BoardDTO, CardDTO, CardPatch, IngestEvent, LinkDTO, Point, SearchHit, Viewport } from './board-types'
 
 export interface VaultPaths {
@@ -25,14 +26,36 @@ export interface AlfonsoApi {
   theme: { list(): Promise<ThemeTokens[]>; getActiveId(): Promise<string>; setActive(id: string): Promise<void> };
   sidecar: { getStatus(): Promise<SidecarStatus>; onStatus(cb: (s: SidecarStatus) => void): () => void };
   layout: { load(): Promise<string | null>; save(json: string): Promise<void> };
+  projects: {
+    list(): Promise<ProjectDTO[]>;
+    create(name: string): Promise<ProjectDTO>;
+    rename(id: string, name: string): Promise<void>;
+    createBoard(projectId: string, name: string): Promise<BoardSummary>;
+    renameBoard(id: string, name: string): Promise<void>;
+    getActiveBoardId(): Promise<string>;
+    setActiveBoard(id: string): Promise<void>;
+  };
+  library: {
+    query(q: LibraryQuery): Promise<LibraryPage>;
+    tags(): Promise<TagCount[]>;
+    detail(assetId: string): Promise<AssetDetail | null>;
+    /** Mengembalikan tag yang sudah dinormalkan. */
+    addTag(assetId: string, tag: string): Promise<string>;
+    removeTag(assetId: string, tag: string): Promise<void>;
+    /** Membuka Explorer dan menyorot file aset di vault (file tidak dibuka atau diubah). */
+    showInFolder(assetId: string): Promise<void>;
+  };
   board: {
-    open(): Promise<BoardDTO>;
+    /** Tanpa id → board aktif. */
+    open(boardId?: string): Promise<BoardDTO>;
+    /** Kartu baru di board aktif yang menunjuk ke aset yang sudah ada (tanpa menyalin file). */
+    addAssetCard(assetId: string, at: Point): Promise<CardDTO>;
     saveCards(patches: CardPatch[]): Promise<void>;
     createNote(at: Point): Promise<CardDTO>;
     deleteCards(ids: string[]): Promise<void>;
     link(fromId: string, toId: string): Promise<LinkDTO>;
     unlink(linkId: string): Promise<void>;
-    saveViewport(v: Viewport): Promise<void>;
+    saveViewport(v: Viewport, boardId?: string): Promise<void>;
   };
   ingest: {
     dropFiles(files: File[], at: Point): Promise<CardDTO[]>;

@@ -10,6 +10,11 @@ import type { IngestService } from './ingest/service'
 import type { CardPatch, Point, Viewport } from '../shared/board-types'
 import { createLink, deleteCards, deleteLink, getActiveBoard, insertCard, loadBoard, saveCards, saveViewport } from './board/repo'
 import { searchAssets } from './search'
+import { createBoard, createProject, listProjects, renameBoard, renameProject, setActiveBoard } from './projects/repo'
+import { listAssets, parseLibraryQuery } from './library/query'
+import { addTag, listTags, removeTag } from './library/tags'
+import { assetFilePath, getAssetDetail } from './library/detail'
+import { addAssetCard } from './library/add-card'
 import type { TranscriptModel } from './transcript-model'
 import type { FolderWatcher } from './ingest/watcher'
 
@@ -50,7 +55,57 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('sidecar:getStatus', () => sidecar.getStatus())
   sidecar.onStatus((s) => deps.getWindow()?.webContents.send('sidecar:status', s))
 
-  ipcMain.handle('board:open', () => loadBoard(db))
+  ipcMain.handle('projects:list', () => listProjects(db))
+  ipcMain.handle('projects:create', (_e, name: unknown) => {
+    assert(typeof name === 'string')
+    return createProject(db, name)
+  })
+  ipcMain.handle('projects:rename', (_e, id: unknown, name: unknown) => {
+    assert(typeof id === 'string' && typeof name === 'string')
+    renameProject(db, id, name)
+  })
+  ipcMain.handle('projects:createBoard', (_e, projectId: unknown, name: unknown) => {
+    assert(typeof projectId === 'string' && typeof name === 'string')
+    return createBoard(db, projectId, name)
+  })
+  ipcMain.handle('projects:renameBoard', (_e, id: unknown, name: unknown) => {
+    assert(typeof id === 'string' && typeof name === 'string')
+    renameBoard(db, id, name)
+  })
+  ipcMain.handle('projects:getActiveBoardId', () => getActiveBoard(db).id)
+  ipcMain.handle('projects:setActiveBoard', (_e, id: unknown) => {
+    assert(typeof id === 'string')
+    setActiveBoard(db, id)
+  })
+
+  ipcMain.handle('library:query', (_e, q: unknown) => listAssets(db, parseLibraryQuery(q)))
+  ipcMain.handle('library:tags', () => listTags(db))
+  ipcMain.handle('library:detail', (_e, id: unknown) => {
+    assert(typeof id === 'string')
+    return getAssetDetail(db, id)
+  })
+  ipcMain.handle('library:addTag', (_e, id: unknown, tag: unknown) => {
+    assert(typeof id === 'string' && typeof tag === 'string')
+    return addTag(db, id, tag)
+  })
+  ipcMain.handle('library:removeTag', (_e, id: unknown, tag: unknown) => {
+    assert(typeof id === 'string' && typeof tag === 'string')
+    removeTag(db, id, tag)
+  })
+  // Hanya menyorot file di Explorer; file vault tidak dibuka dengan aplikasi lain (bisa mengubah isinya).
+  ipcMain.handle('library:showInFolder', (_e, id: unknown) => {
+    assert(typeof id === 'string')
+    shell.showItemInFolder(assetFilePath(db, vault, id))
+  })
+
+  ipcMain.handle('board:open', (_e, boardId: unknown) => {
+    assert(boardId === undefined || typeof boardId === 'string')
+    return loadBoard(db, boardId)
+  })
+  ipcMain.handle('board:addAssetCard', (_e, assetId: unknown, at: unknown) => {
+    assert(typeof assetId === 'string' && isPoint(at))
+    return addAssetCard(db, assetId, at)
+  })
   ipcMain.handle('board:saveCards', (_e, patches: unknown) => {
     assert(Array.isArray(patches) && patches.every((p) => typeof p?.id === 'string'))
     saveCards(db, patches as CardPatch[])
@@ -71,9 +126,9 @@ export function registerIpc(deps: IpcDeps): void {
     assert(typeof id === 'string')
     deleteLink(db, id)
   })
-  ipcMain.handle('board:saveViewport', (_e, v: unknown) => {
-    assert(isPoint(v) && Number.isFinite((v as Viewport).zoom))
-    saveViewport(db, v as Viewport)
+  ipcMain.handle('board:saveViewport', (_e, v: unknown, boardId: unknown) => {
+    assert(isPoint(v) && Number.isFinite((v as Viewport).zoom) && (boardId === undefined || typeof boardId === 'string'))
+    saveViewport(db, v as Viewport, boardId)
   })
 
   const ask = async (opts: MessageBoxOptions): Promise<number> => {

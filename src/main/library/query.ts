@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
-import type { LibraryItem, LibraryPage, LibraryQuery } from '../../shared/library-types'
+import type { AssetStatus } from '../../shared/board-types'
+import { JENIS, type Jenis, type LibraryItem, type LibraryPage, type LibraryQuery } from '../../shared/library-types'
 import { getAsset } from '../board/repo'
 import { kindForFile } from '../ingest/importer'
 import { toFtsQuery } from '../search'
@@ -61,4 +62,32 @@ export function listAssets(db: DB, query: LibraryQuery): LibraryPage {
     (r): LibraryItem => ({ asset: getAsset(db, r.id)!, jenis: kindForFile(r.original_name).jenis, createdAt: r.created_at, snippet: r.snippet })
   )
   return { items, total }
+}
+
+const SCOPES = ['semua', 'proyek', 'belum-dipakai']
+const SORTS = Object.keys(ORDER)
+const STATUSES = ['memproses', 'siap', 'gagal']
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length <= 200) : [])
+
+/** Validasi kueri dari renderer: nilai yang tidak dikenal dibuang, tipe yang salah ditolak. */
+export function parseLibraryQuery(v: unknown): LibraryQuery {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) throw new Error('Kueri Library tidak valid')
+  const o = v as Record<string, unknown>
+  const out: LibraryQuery = {}
+  if (o.q !== undefined) {
+    if (typeof o.q !== 'string' || o.q.length > 1000) throw new Error('Kata kunci tidak valid')
+    out.q = o.q
+  }
+  const jenis = strings(o.jenis).filter((j): j is Jenis => (JENIS as string[]).includes(j))
+  if (jenis.length) out.jenis = jenis
+  const status = strings(o.status).filter((s): s is AssetStatus => STATUSES.includes(s))
+  if (status.length) out.status = status
+  const tags = strings(o.tags)
+  if (tags.length) out.tags = tags
+  if (typeof o.scope === 'string' && SCOPES.includes(o.scope)) out.scope = o.scope as LibraryQuery['scope']
+  if (typeof o.projectId === 'string') out.projectId = o.projectId
+  if (typeof o.sort === 'string' && SORTS.includes(o.sort)) out.sort = o.sort as LibraryQuery['sort']
+  if (Number.isInteger(o.offset) && (o.offset as number) >= 0) out.offset = o.offset as number
+  if (Number.isInteger(o.limit) && (o.limit as number) > 0) out.limit = o.limit as number
+  return out
 }

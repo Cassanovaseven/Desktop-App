@@ -189,3 +189,29 @@ test('path untuk "Tampilkan di folder" selalu di dalam files/', () => {
   expect(() => assetFilePath(t.db, t.vault, id)).toThrow()
   expect(() => assetFilePath(t.db, t.vault, 'tidak-ada')).toThrow()
 })
+
+// ---- Task 6 & 9: validasi IPC dan kartu dari Library ----
+
+test('parseLibraryQuery membuang nilai yang tidak dikenal dan menolak tipe salah', async () => {
+  const { parseLibraryQuery } = await import('../../src/main/library/query')
+  expect(parseLibraryQuery({ q: 'x', jenis: ['gambar', 'bom'], status: ['siap', 'DROP'], tags: ['a', 3], scope: 'proyek', projectId: 'p', sort: 'nama', offset: 10, limit: 50 }))
+    .toEqual({ q: 'x', jenis: ['gambar'], status: ['siap'], tags: ['a'], scope: 'proyek', projectId: 'p', sort: 'nama', offset: 10, limit: 50 })
+  expect(parseLibraryQuery({ scope: 'aneh', sort: 'aneh', offset: -1, limit: 'x' })).toEqual({})
+  expect(() => parseLibraryQuery(null)).toThrow()
+  expect(() => parseLibraryQuery({ q: 5 })).toThrow()
+  expect(() => parseLibraryQuery({ q: 'x'.repeat(1001) })).toThrow()
+})
+
+test('addAssetCard: kartu baru menunjuk aset yang sama tanpa aset atau file baru', async () => {
+  const { addAssetCard } = await import('../../src/main/library/add-card')
+  const img = seed('foto.png'); const zip = seed('arsip.zip'); const vid = seed('klip.mp4')
+  const p2 = createProject(t.db, 'Dua')
+  const before = (t.db.prepare('SELECT COUNT(*) AS n FROM assets').get() as { n: number }).n
+  const c1 = addAssetCard(t.db, img, { x: 5, y: 6 }, p2.boards[0].id)
+  expect(c1).toMatchObject({ boardId: p2.boards[0].id, type: 'gambar', x: 5, y: 6, assetId: img })
+  expect(addAssetCard(t.db, zip, { x: 0, y: 0 }).type).toBe('file')
+  expect(addAssetCard(t.db, vid, { x: 0, y: 0 })).toMatchObject({ type: 'file', h: 200, boardId: getActiveBoard(t.db).id })
+  expect((t.db.prepare('SELECT COUNT(*) AS n FROM assets').get() as { n: number }).n).toBe(before)
+  expect(() => addAssetCard(t.db, 'tidak-ada', { x: 0, y: 0 })).toThrow(/Aset/)
+  expect(() => addAssetCard(t.db, img, { x: 0, y: 0 }, 'board-hilang')).toThrow(/Board/)
+})
