@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from . import __version__, transkrip
 from .extract import ExtractError, extract_file
 from .generate import GenError
-from .generate import comfyui, higgsfield
+from .generate import comfyui, higgsfield, video
 
 TOKEN_HEADER = "X-Alfonso-Token"
 KEY_HEADER = "X-Alfonso-Key"
@@ -50,6 +50,12 @@ class ComfySubmit(BaseModel):
     workflow_path: str
     values: dict[str, str | int | float | None]
     reference_path: str | None = None
+
+
+class EncodeVideo(BaseModel):
+    frames_dir: str
+    fps: int
+    max_frames: int = video.MAX_FRAMES
 
 
 class ComfyWait(BaseModel):
@@ -131,6 +137,11 @@ def create_app(
         client = hf_client(request)
         path = higgsfield.wait(client, req.request_id, wait_timeout, poll_delay, http_transport)
         return {"path": str(path), "ext": path.suffix.lstrip("."), "temp_dir": str(path.parent)}
+
+    @app.post("/encode/video")
+    def encode_video(req: EncodeVideo):
+        path = video.encode(req.frames_dir, req.fps, min(req.max_frames, video.MAX_FRAMES))
+        return {"path": str(path), "ext": "mp4", "temp_dir": str(path.parent)}
 
     @app.get("/generate/comfyui/status")
     def comfy_status(base_url: str):
