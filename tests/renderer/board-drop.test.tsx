@@ -131,3 +131,46 @@ test('paste file bukan gambar tidak dikirim; teksnya tetap dipakai bila ada', as
   await waitFor(() => expect(api.ingest.pasteText).toHaveBeenCalledWith('catatan', expect.anything()))
   expect(api.ingest.pasteImage).not.toHaveBeenCalled()
 })
+
+// ---- Fase 2 ----
+import { workspace } from '../../src/renderer/workspace'
+import { ASSET_DRAG_TYPE } from '../../src/renderer/library/LibraryPanel'
+
+function dropAsset(el: HTMLElement, assetId: string, x = 0, y = 0): void {
+  const ev = createEvent.drop(el, { dataTransfer: { files: [], types: [ASSET_DRAG_TYPE], getData: (k: string) => (k === ASSET_DRAG_TYPE ? assetId : '') } })
+  Object.defineProperty(ev, 'clientX', { value: x }); Object.defineProperty(ev, 'clientY', { value: y })
+  fireEvent(el, ev)
+}
+
+test('Fase 2: aset dari Library di-drop → addAssetCard di titik drop, bukan dropFiles', async () => {
+  workspace.reset()
+  api.board.addAssetCard = vi.fn(async () => ({ ...note('k1'), type: 'file', assetId: 'a7', asset: { id: 'a7', originalName: 'dari-library.pdf', mime: null, sizeBytes: 1, status: 'siap', previewUrl: null, error: null, transkrip: null, meta: null } }))
+  render(<Board />)
+  dropAsset(await screen.findByTestId('board'), 'a7', 30, 40)
+  await waitFor(() => expect(api.board.addAssetCard).toHaveBeenCalledWith('a7', { x: 30, y: 40 }))
+  expect(api.ingest.dropFiles).not.toHaveBeenCalled()
+  expect(await screen.findByText('dari-library.pdf')).toBeTruthy()
+})
+
+test('Fase 2: board mengikuti board aktif; viewport disimpan ke board-nya sendiri', async () => {
+  workspace.reset()
+  api.board.open.mockImplementation(async (id?: string) => ({ id: id ?? 'b1', projectId: 'p1', name: id === 'b2' ? 'Sketsa' : 'Board Utama', viewport: null, cards: id === 'b2' ? [note('n2', 'isi board dua')] : [], links: [] }))
+  render(<Board />)
+  await screen.findByTestId('board')
+  expect(api.board.open).toHaveBeenCalledWith(undefined)
+  expect(workspace.get()).toMatchObject({ activeBoardId: 'b1', activeProjectId: 'p1' })
+  act(() => workspace.setActiveBoard('b2', 'p1'))
+  expect(((await screen.findByLabelText('Isi catatan')) as HTMLTextAreaElement).value).toBe('isi board dua')
+  expect(api.board.open).toHaveBeenLastCalledWith('b2')
+})
+
+test('Fase 2: menghapus kartu memberi tahu Library', async () => {
+  workspace.reset()
+  api.board.open.mockResolvedValue({ id: 'b1', projectId: 'p1', name: 'B', viewport: null, cards: [note('n1', 'x')], links: [] })
+  render(<Board />)
+  await screen.findByLabelText('Isi catatan')
+  const before = workspace.get().libraryVersion
+  act(() => boardController.removeCards(['n1']))
+  await waitFor(() => expect(api.board.deleteCards).toHaveBeenCalledWith(['n1']))
+  expect(workspace.get().libraryVersion).toBe(before + 1)
+})

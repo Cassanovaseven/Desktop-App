@@ -1,5 +1,6 @@
 import type { Edge, Node } from '@xyflow/react'
 import type { CardDTO, CardPatch, LinkDTO } from '../../shared/board-types'
+import type { Selection } from '../workspace'
 
 export type CardNode = Node<{ card: CardDTO }>
 
@@ -55,4 +56,16 @@ export function createSaveScheduler(save: (patches: CardPatch[]) => void, delayM
     },
     flush
   }
+}
+
+/** Kartu yang dipilih di Board → isi Inspector. Tanpa pilihan, pilihan dari Library tetap dipertahankan. */
+export function selectionFromCards(cards: CardDTO[], prev: Selection): Selection {
+  if (cards.length === 0) {
+    const fromBoard = prev !== null && (prev.kind !== 'asset' || prev.cardId !== undefined)
+    return fromBoard ? null : prev
+  }
+  if (cards.length > 1) return { kind: 'cards', count: cards.length }
+  const c = cards[0]
+  if (c.assetId) return { kind: 'asset', assetId: c.assetId, cardId: c.id }
+  return { kind: 'card', cardId: c.id, type: c.type, content: c.content }
 }

@@ -4,19 +4,26 @@ import {
   type Connection, type Edge, type EdgeChange, type NodeChange, type Viewport as FlowViewport
 } from '@xyflow/react'
 import type { CardDTO, IngestEvent, Viewport } from '../../shared/board-types'
-import { cardToNode, createSaveScheduler, linkToEdge, nodeToCardPatch, FLOW_PROPS, type CardNode } from './mapping'
+import { cardToNode, createSaveScheduler, linkToEdge, nodeToCardPatch, selectionFromCards, FLOW_PROPS, type CardNode } from './mapping'
 import { nodeTypes } from './cards/CardNode'
+import { ASSET_DRAG_TYPE } from '../library/LibraryPanel'
+import { useWorkspace, workspace } from '../workspace'
 
 export interface BoardController {
   addNote(): void
   focusCard(id: string): void
+  /** Kartu baru di tengah layar yang menunjuk ke aset yang sudah ada (tombol "Tambahkan ke Board"). */
+  addAsset(assetId: string): void
+  removeCards(ids: string[]): void
 }
 
-// Palette (di luar React Flow) memanggil Board lewat pengendali ini.
+// Palette, Library, dan Inspector (di luar React Flow) memanggil Board lewat pengendali ini.
 let controller: BoardController | null = null
 export const boardController = {
   addNote: (): void => controller?.addNote(),
-  focusCard: (id: string): void => controller?.focusCard(id)
+  focusCard: (id: string): void => controller?.focusCard(id),
+  addAsset: (assetId: string): void => controller?.addAsset(assetId),
+  removeCards: (ids: string[]): void => controller?.removeCards(ids)
 }
 
 const PASTE_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
@@ -25,7 +32,8 @@ function isTextInput(el: EventTarget | null): boolean {
   return el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
 }
 
-function BoardInner(props: { initial: { nodes: CardNode[]; edges: Edge[]; viewport: Viewport | null } }): React.JSX.Element {
+function BoardInner(props: { initial: { id: string; nodes: CardNode[]; edges: Edge[]; viewport: Viewport | null } }): React.JSX.Element {
+  const boardId = props.initial.id
   const api = window.alfonso
   const flow = useReactFlow()
   const wrapper = useRef<HTMLDivElement>(null)
@@ -50,15 +58,49 @@ function BoardInner(props: { initial: { nodes: CardNode[]; edges: Edge[]; viewpo
     return flow.screenToFlowPosition({ x: (r?.left ?? 0) + (r?.width ?? 0) / 2, y: (r?.top ?? 0) + (r?.height ?? 0) / 2 })
   }, [flow])
 
+  const removeCards = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return
+      void api.board.deleteCards(ids)
+      // Aset kartu yang dihapus bisa jadi "belum dipakai" di Library.
+      workspace.bumpLibrary()
+    },
+    [api]
+  )
+
   useEffect(() => {
     controller = {
       addNote: () => void api.board.createNote(centerPosition()).then((c) => addCards([c])),
-      focusCard: (id) => void flow.fitView({ nodes: [{ id }], maxZoom: 1, duration: 200 })
+      focusCard: (id) => void flow.fitView({ nodes: [{ id }], maxZoom: 1, duration: 200 }),
+      addAsset: (assetId) =>
+        void api.board.addAssetCard(assetId, centerPosition()).then((c) => {
+          addCards([c])
+          workspace.bumpLibrary()
+        }, (err: Error) => showMessage(err.message)),
+      removeCards: (ids) => {
+        setNodes((ns) => ns.filter((n) => !ids.includes(n.id)))
+        removeCards(ids)
+      }
     }
     return () => {
       controller = null
     }
-  }, [api, flow, centerPosition, addCards])
+  }, [api, flow, centerPosition, addCards, removeCards, showMessage])
+
+  // Permintaan fokus (dari pencarian atau Inspector "Dipakai di") untuk kartu di board ini.
+  const nodesRef = useRef(nodes)
+  nodesRef.current = nodes
+  useEffect(() => {
+    const tryFocus = (): void => {
+      const id = workspace.peekFocus()
+      if (!id || !nodesRef.current.some((n) => n.id === id)) return
+      workspace.takeFocus()
+      // Ditunda satu frame supaya ukuran node baru sudah terukur.
+      requestAnimationFrame(() => void flow.fitView({ nodes: [{ id }], maxZoom: 1, duration: 200 }))
+    }
+    tryFocus()
+    return workspace.subscribe(tryFocus)
+  }, [flow])
 
   // Status ekstraksi berubah → kartu yang menunjuk asset itu diperbarui; kartu baru (isi ZIP) ditambahkan.
   useEffect(
@@ -115,11 +157,16 @@ function BoardInner(props: { initial: { nodes: CardNode[]; edges: Edge[]; viewpo
   const onNodesChange = useCallback(
     (changes: NodeChange<CardNode>[]) => {
       const removed = changes.filter((c) => c.type === 'remove').map((c) => c.id)
-      if (removed.length) void api.board.deleteCards(removed)
+      removeCards(removed)
       setNodes((ns) => applyNodeChanges(changes, ns))
     },
-    [api]
+    [removeCards]
   )
+
+  const onSelectionChange = useCallback(({ nodes: selected }: { nodes: CardNode[] }) => {
+    const next = selectionFromCards(selected.map((n) => n.data.card), workspace.get().selection)
+    if (JSON.stringify(next) !== JSON.stringify(workspace.get().selection)) workspace.select(next)
+  }, [])
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
@@ -147,24 +194,40 @@ function BoardInner(props: { initial: { nodes: CardNode[]; edges: Edge[]; viewpo
   const onMoveEnd = useCallback(
     (_e: MouseEvent | TouchEvent | null, v: FlowViewport) => {
       if (viewportTimer.current) clearTimeout(viewportTimer.current)
-      viewportTimer.current = setTimeout(() => void api.board.saveViewport({ x: v.x, y: v.y, zoom: v.zoom }), 1000)
+      viewportTimer.current = setTimeout(() => void api.board.saveViewport({ x: v.x, y: v.y, zoom: v.zoom }, boardId), 1000)
     },
-    [api]
+    [api, boardId]
   )
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
+      const at = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+      // Aset dari Library: kartu baru menunjuk ke aset yang sama, file tidak disalin ulang.
+      if (Array.from(e.dataTransfer.types ?? []).includes(ASSET_DRAG_TYPE)) {
+        const assetId = e.dataTransfer.getData(ASSET_DRAG_TYPE)
+        if (assetId)
+          api.board.addAssetCard(assetId, at).then((c) => {
+            addCards([c])
+            workspace.bumpLibrary()
+          }, (err: Error) => showMessage(err.message))
+        return
+      }
       const files = Array.from(e.dataTransfer.files)
       if (files.length === 0) return
-      const at = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY })
       api.ingest.dropFiles(files, at).then(addCards, (err: Error) => showMessage(err.message))
     },
     [api, flow, addCards, showMessage]
   )
 
   return (
-    <div className="board" ref={wrapper} onDragOver={(e) => e.preventDefault()} onDrop={onDrop} data-testid="board">
+    <div
+      className="board"
+      ref={wrapper}
+      onDragOver={(e) => {
+        e.preventDefault()
+        if (Array.from(e.dataTransfer.types ?? []).includes(ASSET_DRAG_TYPE)) e.dataTransfer.dropEffect = 'copy'
+      }} onDrop={onDrop} data-testid="board">
       <ReactFlow
         {...FLOW_PROPS}
         nodes={nodes}
@@ -175,6 +238,7 @@ function BoardInner(props: { initial: { nodes: CardNode[]; edges: Edge[]; viewpo
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
         onMoveEnd={onMoveEnd}
+        onSelectionChange={onSelectionChange}
         defaultViewport={props.initial.viewport ?? { x: 0, y: 0, zoom: 1 }}
       />
       {nodes.length === 0 && <div className="board-empty">Drop file ke sini, tempel teks atau tautan, atau tekan Ctrl+K → Tambah catatan.</div>}
@@ -184,20 +248,32 @@ function BoardInner(props: { initial: { nodes: CardNode[]; edges: Edge[]; viewpo
 }
 
 export function Board(): React.JSX.Element {
-  const [initial, setInitial] = useState<{ nodes: CardNode[]; edges: Edge[]; viewport: Viewport | null } | null>(null)
+  const activeBoardId = useWorkspace((s) => s.activeBoardId)
+  const [initial, setInitial] = useState<{ id: string; nodes: CardNode[]; edges: Edge[]; viewport: Viewport | null } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const loadedId = initial?.id ?? null
 
+  // Board aktif berubah (panel Proyek, Inspector "Dipakai di") → muat board itu.
   useEffect(() => {
-    window.alfonso.board.open().then(
-      (b) => setInitial({ nodes: b.cards.map(cardToNode), edges: b.links.map(linkToEdge), viewport: b.viewport }),
-      (err: Error) => setError(err.message)
+    if (activeBoardId !== null && activeBoardId === loadedId) return
+    let cancelled = false
+    window.alfonso.board.open(activeBoardId ?? undefined).then(
+      (b) => {
+        if (cancelled) return
+        setInitial({ id: b.id, nodes: b.cards.map(cardToNode), edges: b.links.map(linkToEdge), viewport: b.viewport })
+        workspace.setActiveBoard(b.id, b.projectId)
+      },
+      (err: Error) => !cancelled && setError(err.message)
     )
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [activeBoardId, loadedId])
 
   if (error) return <div className="panel-placeholder">Board gagal dimuat: {error}</div>
   if (!initial) return <div className="panel-placeholder">Memuat Board…</div>
   return (
-    <ReactFlowProvider>
+    <ReactFlowProvider key={initial.id}>
       <BoardInner initial={initial} />
     </ReactFlowProvider>
   )

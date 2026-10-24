@@ -32,3 +32,17 @@ test('flush menyimpan segera dan tidak menyimpan dua kali', () => {
   expect(save).toHaveBeenCalledTimes(1)
   s.flush(); expect(save).toHaveBeenCalledTimes(1)
 })
+
+test('Fase 2: pilihan kartu → isi Inspector', async () => {
+  const { selectionFromCards } = await import('../../src/renderer/board/mapping')
+  const base = { boardId: 'b', x: 0, y: 0, w: 1, h: 1, z: 0, style: null }
+  const file = { ...base, id: 'c1', type: 'file' as const, assetId: 'a1', content: null, asset: null }
+  const nt = { ...base, id: 'c2', type: 'catatan' as const, assetId: null, content: 'halo', asset: null }
+  expect(selectionFromCards([file], null)).toEqual({ kind: 'asset', assetId: 'a1', cardId: 'c1' })
+  expect(selectionFromCards([nt], null)).toEqual({ kind: 'card', cardId: 'c2', type: 'catatan', content: 'halo' })
+  expect(selectionFromCards([file, nt], null)).toEqual({ kind: 'cards', count: 2 })
+  // Tidak ada kartu dipilih: pilihan dari Library dipertahankan, pilihan dari Board dikosongkan.
+  expect(selectionFromCards([], { kind: 'asset', assetId: 'a9' })).toEqual({ kind: 'asset', assetId: 'a9' })
+  expect(selectionFromCards([], { kind: 'asset', assetId: 'a1', cardId: 'c1' })).toBeNull()
+  expect(selectionFromCards([], { kind: 'cards', count: 2 })).toBeNull()
+})

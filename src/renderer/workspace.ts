@@ -57,6 +57,9 @@ export const workspace = {
     pendingFocus = cardId
     emit()
   },
+  peekFocus(): string | null {
+    return pendingFocus
+  },
   takeFocus(): string | null {
     const id = pendingFocus
     pendingFocus = null
