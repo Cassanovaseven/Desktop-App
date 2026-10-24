@@ -1,5 +1,8 @@
 import type { AssetDetail, BoardSummary, LibraryPage, LibraryQuery, ProjectDTO, TagCount } from './library-types'
 import type { BoardDTO, CardDTO, CardPatch, IngestEvent, LinkDTO, Point, SearchHit, Viewport } from './board-types'
+import type {
+  CostEstimate, GenerateRequest, GenerationDTO, Lane, PromptDTO, PromptInput, PromptParams, PromptVersionSummary, StudioEvent, StudioSettings
+} from './studio-types'
 
 export interface VaultPaths {
   root: string; db: string; files: string; thumbs: string;
@@ -73,6 +76,32 @@ export interface AlfonsoApi {
     add(): Promise<{ message: string }>;
     /** Memilih folder yang berhenti dipantau lewat dialog di proses utama. */
     remove(): Promise<{ message: string }>;
+  };
+  studio: {
+    listPrompts(filter?: { q?: string; lane?: Lane }): Promise<PromptDTO[]>;
+    getPrompt(id: string): Promise<PromptDTO | null>;
+    /** Mengedit selalu membuat versi baru (versi lama tidak ditimpa). */
+    savePrompt(input: PromptInput): Promise<PromptDTO>;
+    history(id: string): Promise<PromptVersionSummary[]>;
+    addExample(promptId: string, assetId: string): Promise<PromptDTO>;
+    estimate(promptId: string, params?: PromptParams): Promise<CostEstimate>;
+    estimateGeneration(generationId: string): Promise<CostEstimate>;
+    generate(req: GenerateRequest): Promise<GenerationDTO[]>;
+    /** Generate ulang dengan prompt versi, variabel, dan parameter yang sama persis. */
+    regenerate(generationId: string, confirmedCost?: boolean): Promise<GenerationDTO[]>;
+    retry(generationId: string, confirmedCost?: boolean): Promise<GenerationDTO>;
+    generations(limit?: number): Promise<GenerationDTO[]>;
+    generationForAsset(assetId: string): Promise<GenerationDTO | null>;
+    settings(): Promise<StudioSettings>;
+    /** Kunci dienkripsi di proses utama; tidak ada cara membacanya kembali dari renderer. */
+    saveKey(apiKey: string, secret: string): Promise<StudioSettings>;
+    clearKey(): Promise<StudioSettings>;
+    setComfyUrl(url: string): Promise<StudioSettings>;
+    setCost(model: string, credits: number | null): Promise<StudioSettings>;
+    comfyStatus(): Promise<boolean>;
+    pickWorkflow(): Promise<{ assetId: string; name: string } | null>;
+    assetName(assetId: string): Promise<string | null>;
+    onEvent(cb: (e: StudioEvent) => void): () => void;
   };
   transkrip: {
     /** Bertanya dulu (dialog), lalu mengunduh model Whisper bila belum ada. */

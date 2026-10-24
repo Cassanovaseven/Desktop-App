@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, safeStorage } from 'electron'
 import fs from 'fs'
 import { join } from 'path'
 import type Database from 'better-sqlite3'
@@ -19,6 +19,12 @@ import { createTranscriptModel } from './transcript-model'
 import { createFolderWatcher, type FolderWatcher } from './ingest/watcher'
 import { downloadUrl } from './ingest/url'
 import { DEFAULT_SIZE, getActiveBoard, insertAsset, insertCard } from './board/repo'
+import { createKeyStore, type KeyStore } from './studio/keys'
+import { createRemoteAdapters } from './studio/adapters/remote'
+import { createCodeAdapter } from './studio/adapters/code'
+import { createP5Renderer } from './studio/render-window'
+import { createStudioRunner, type StudioRunner } from './studio/runner'
+import { comfyUrl, registerStudioIpc } from './studio/ipc'
 
 // Harus sebelum `ready`; foldernya dibuat dulu.
 if (process.env.ALFONSO_USER_DATA) {
@@ -36,6 +42,7 @@ let db: Database.Database | null = null
 let sidecar: SidecarManager | null = null
 let ingest: IngestService | null = null
 let watcher: FolderWatcher | null = null
+let studio: StudioRunner | null = null
 let quitting = false
 
 function createWindow(): BrowserWindow {
@@ -71,7 +78,10 @@ async function bootstrap(): Promise<void> {
   }
 
   let manager: SidecarManager | null = null
-  const log = createLogger(vault.logs, () => (manager ? [manager.token] : []))
+  let keys: KeyStore | null = null
+  // Token sidecar dan kunci Higgsfield tidak pernah masuk log.
+  const secrets = (): string[] => [...(manager ? [manager.token] : []), ...(keys ? keys.secrets() : [])]
+  const log = createLogger(vault.logs, secrets)
   log.info('Alfonso mulai')
   db = openDatabase(vault.db)
   // Penyesuaian data Fase 1 → 2 (tanpa ubah skema): rowid indeks pencarian dan tag jenis/jalur yang belum ada.
@@ -84,7 +94,12 @@ async function bootstrap(): Promise<void> {
     args: ['-m', 'alfonso_sidecar'],
     cwd: join(appRoot, 'sidecar'),
     // Model Whisper di folder data aplikasi, bukan di vault (dibuat sidecar saat unduhan pertama).
-    env: { ALFONSO_VAULT_ROOT: vault.root, ALFONSO_MODELS_DIR: join(app.getPath('userData'), 'models') },
+    env: {
+      ALFONSO_VAULT_ROOT: vault.root,
+      ALFONSO_MODELS_DIR: join(app.getPath('userData'), 'models'),
+      // Server Higgsfield tiruan hanya untuk tes e2e.
+      ...(process.env.ALFONSO_E2E === '1' && process.env.ALFONSO_HIGGSFIELD_URL ? { ALFONSO_HIGGSFIELD_URL: process.env.ALFONSO_HIGGSFIELD_URL } : {})
+    },
     log
   })
   sidecar = manager
@@ -101,9 +116,32 @@ async function bootstrap(): Promise<void> {
     // Alamat lokal hanya diizinkan di mode tes e2e (server tes berjalan di 127.0.0.1).
     download: (url, dir) => downloadUrl(url, { dir, allowPrivate: process.env.ALFONSO_E2E === '1' }),
     notify: (e) => win?.webContents.send('ingest:event', e),
-    secrets: () => [manager.token]
+    secrets
   })
   ingest = service
+
+  // ---- Studio AI (Fase 3) ----
+  const keyStore = createKeyStore(db, safeStorage)
+  keys = keyStore
+  const remote = createRemoteAdapters({ sidecar: manager, db, readKey: () => keyStore.read(), comfyUrl: () => comfyUrl(appDb) })
+  const p5 = createP5Renderer({
+    preloadPath: join(__dirname, '../preload/render.js'),
+    page: process.env['ELECTRON_RENDERER_URL'] ? { url: process.env['ELECTRON_RENDERER_URL'] } : { file: join(__dirname, '../renderer/render.html') }
+  })
+  const runner = createStudioRunner({
+    db,
+    vault,
+    log,
+    kode: createCodeAdapter({ renderer: p5, encodeVideo: remote.encodeVideo }),
+    cloud: remote.cloud,
+    lokal: remote.lokal,
+    notify: (e) => win?.webContents.send('studio:event', e),
+    notifyBoard: (e) => win?.webContents.send('ingest:event', e),
+    onKeyRejected: () => keyStore.markRejected(),
+    afterSave: () => service.queue.kick(),
+    secrets
+  })
+  studio = runner
   const transcriptModel = createTranscriptModel({
     db: appDb,
     client: createSidecarModelClient(manager),
@@ -136,10 +174,12 @@ async function bootstrap(): Promise<void> {
     if (s.state === 'ready') {
       service.queue.start()
       service.transcribeQueue.start()
+      runner.start()
     }
   })
 
   registerIpc({ getWindow: () => win, vault, db, themes, sidecar: manager, ingest: service, transcriptModel, watcher: folderWatcher })
+  registerStudioIpc({ getWindow: () => win, db, vault, keys: keyStore, runner, comfyRunning: remote.comfyRunning, kickExtract: () => service.queue.kick() })
 
   // Kait khusus tes e2e, hanya ada di proses utama dan hanya bila ALFONSO_E2E=1 (tidak terjangkau renderer).
   if (process.env.ALFONSO_E2E === '1') {
@@ -187,7 +227,7 @@ app.on('before-quit', (e) => {
   void (async () => {
     try {
       await watcher?.close()
-      await Promise.all([ingest?.queue.stop(), ingest?.transcribeQueue.stop()])
+      await Promise.all([ingest?.queue.stop(), ingest?.transcribeQueue.stop(), studio?.stop()])
       await sidecar?.stop()
       db?.close()
     } finally {

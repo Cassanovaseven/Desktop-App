@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AlfonsoApi, SidecarStatus } from '../shared/types'
 import type { IngestEvent } from '../shared/board-types'
+import type { StudioEvent } from '../shared/studio-types'
 
 const api: AlfonsoApi = {
   vault: {
@@ -78,6 +79,35 @@ const api: AlfonsoApi = {
   watch: {
     add: () => ipcRenderer.invoke('watch:add'),
     remove: () => ipcRenderer.invoke('watch:remove')
+  },
+  studio: {
+    listPrompts: (filter) => ipcRenderer.invoke('studio:listPrompts', filter),
+    getPrompt: (id) => ipcRenderer.invoke('studio:getPrompt', id),
+    savePrompt: (input) => ipcRenderer.invoke('studio:savePrompt', input),
+    history: (id) => ipcRenderer.invoke('studio:history', id),
+    addExample: (promptId, assetId) => ipcRenderer.invoke('studio:addExample', promptId, assetId),
+    estimate: (promptId, params) => ipcRenderer.invoke('studio:estimate', promptId, params),
+    estimateGeneration: (id) => ipcRenderer.invoke('studio:estimateGeneration', id),
+    generate: (req) => ipcRenderer.invoke('studio:generate', req),
+    regenerate: (id, confirmedCost) => ipcRenderer.invoke('studio:regenerate', id, confirmedCost),
+    retry: (id, confirmedCost) => ipcRenderer.invoke('studio:retry', id, confirmedCost),
+    generations: (limit) => ipcRenderer.invoke('studio:generations', limit),
+    generationForAsset: (assetId) => ipcRenderer.invoke('studio:generationForAsset', assetId),
+    settings: () => ipcRenderer.invoke('studio:settings'),
+    saveKey: (apiKey, secret) => ipcRenderer.invoke('studio:saveKey', apiKey, secret),
+    clearKey: () => ipcRenderer.invoke('studio:clearKey'),
+    setComfyUrl: (url) => ipcRenderer.invoke('studio:setComfyUrl', url),
+    setCost: (model, credits) => ipcRenderer.invoke('studio:setCost', model, credits),
+    comfyStatus: () => ipcRenderer.invoke('studio:comfyStatus'),
+    pickWorkflow: () => ipcRenderer.invoke('studio:pickWorkflow'),
+    assetName: (id) => ipcRenderer.invoke('studio:assetName', id),
+    onEvent: (cb) => {
+      const w = (_e: Electron.IpcRendererEvent, v: StudioEvent): void => cb(v)
+      ipcRenderer.on('studio:event', w)
+      return () => {
+        ipcRenderer.off('studio:event', w)
+      }
+    }
   },
   transkrip: {
     downloadModel: () => ipcRenderer.invoke('transkrip:downloadModel')
