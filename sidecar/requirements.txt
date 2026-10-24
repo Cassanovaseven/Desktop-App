@@ -2,6 +2,7 @@ fastapi==0.161.0
 uvicorn==0.54.0
 pytest==9.1.1
 httpx==0.28.1
+higgsfield-client==0.2.0
 pypdf==6.21.2
 python-docx==1.2.0
 python-pptx==1.0.2
