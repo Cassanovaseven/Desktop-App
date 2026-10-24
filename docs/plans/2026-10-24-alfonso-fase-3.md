@@ -1,6 +1,9 @@
 # Alfonso Fase 3 (Studio AI) — Rencana TDD
 
-> Status: **Draf, menunggu persetujuan Cassanova** (2026-10-24). Belum ada kode yang ditulis.
+> Status: **Disetujui Cassanova 2026-10-24 ("Setujui, mulai kerjakan") dan selesai dikerjakan 2026-10-24.**
+> Laporan dan penyimpangan dari rencana: `/mnt/project-files/alfonso/laporan-fase-3.md`.
+> Penyimpangan singkat: `alfonsoSelesai()` dan `[SUMBER_GAMBAR]` belum dibuat (p5 gambar diambil setelah `setup()` + 1 frame;
+> hanya `[SUMBER_TEKS]` yang terisi otomatis); riwayat generate tampil di bagian "Riwayat" tab Studio, bukan di panel Antrean & Log.
 
 **Goal:** Membuat aset baru dari dalam Alfonso lewat tiga jalur (cloud Higgsfield, lokal ComfyUI, kode), dengan setiap hasil tercatat asal-usulnya (prompt, versi, model, parameter, biaya) dan bisa di-generate ulang dengan satu klik. Ini menutup kriteria sukses spec ke-2.
 

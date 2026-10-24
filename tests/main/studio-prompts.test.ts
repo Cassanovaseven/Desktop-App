@@ -58,7 +58,8 @@ test('daftar hanya versi terbaru, bisa dicari nama atau isi template, disaring j
 })
 
 test('validasi: nama kosong / > 80, jalur & model kode tak dikenal, template kosong / terlalu panjang', () => {
-  expect(() => savePrompt(t.db, t.vault, { ...base, name: ' ' })).toThrow('Nama')
+  // Nama kosong (langsung generate tanpa memberi nama): tetap tersimpan supaya asal-usul tidak hilang.
+  expect(savePrompt(t.db, t.vault, { ...base, name: ' ' }).name).toMatch(/^Tanpa judul \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)
   expect(() => savePrompt(t.db, t.vault, { ...base, name: 'x'.repeat(81) })).toThrow('Nama')
   expect(() => savePrompt(t.db, t.vault, { ...base, lane: 'awan' as never })).toThrow('Jalur')
   expect(() => savePrompt(t.db, t.vault, { ...base, lane: 'kode', targetModel: 'remotion' })).toThrow('Model')

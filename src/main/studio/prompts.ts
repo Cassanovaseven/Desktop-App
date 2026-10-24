@@ -110,8 +110,9 @@ function cleanParams(p: unknown): PromptParams {
 }
 
 function validate(input: PromptInput): { name: string; lane: Lane; model: string; template: string; params: PromptParams } {
-  const name = typeof input.name === 'string' ? input.name.trim() : ''
-  if (!name || name.length > MAX_NAME) throw new Error(`Nama prompt harus diisi, maksimal ${MAX_NAME} karakter.`)
+  // Prompt yang langsung dipakai generate tanpa diberi nama tetap disimpan (rencana Fase 3, keputusan 3).
+  const name = (typeof input.name === 'string' ? input.name.trim() : '') || `Tanpa judul ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`
+  if (name.length > MAX_NAME) throw new Error(`Nama prompt maksimal ${MAX_NAME} karakter.`)
   if (!LANES.includes(input.lane)) throw new Error('Jalur tidak dikenal.')
   const model = typeof input.targetModel === 'string' ? input.targetModel.trim() : ''
   const okModel =
