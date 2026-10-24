@@ -179,3 +179,15 @@ test('riwayat diperbarui dari event; gagal → Coba ulang (cloud lewat konfirmas
   await user.click(screen.getByRole('button', { name: 'Konfirmasi' }))
   await waitFor(() => expect(studio.retry).toHaveBeenCalledWith('g8', true))
 })
+
+test('tanpa kartu referensi → hasil diminta di tengah board yang sedang terlihat', async () => {
+  const { boardController } = await import('../../src/renderer/board/Board')
+  const center = vi.spyOn(boardController, 'center').mockReturnValue({ x: 321, y: 123 })
+  const user = userEvent.setup()
+  render(<StudioPanel />)
+  await user.click(await screen.findByText('Lencana'))
+  await user.type(screen.getByLabelText('Variabel TEKS'), 'Halo')
+  await user.click(screen.getByRole('button', { name: 'Generate' }))
+  await waitFor(() => expect(studio.generate).toHaveBeenCalledWith({ promptId: 'p1', variables: { TEKS: 'Halo' }, sourceCardId: null, at: { x: 321, y: 123 }, confirmedCost: false }))
+  center.mockRestore()
+})

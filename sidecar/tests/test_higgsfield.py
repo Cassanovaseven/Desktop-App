@@ -31,6 +31,8 @@ class FakeHiggsfield:
         if req.url.host == "upload.test":
             return httpx.Response(200)
         assert req.headers["authorization"] == f"Key {KEY}"
+        # Semua panggilan API (termasuk cek status) harus ke alamat yang dikonfigurasi, bukan alamat bawaan SDK.
+        assert req.url.host == "hf.test", req.url
         if req.url.path == "/files/generate-upload-url":
             return httpx.Response(200, json={"public_url": "https://cdn.test/ref.png", "upload_url": "https://upload.test/put"})
         if req.method == "POST" and req.url.path.startswith("/bytedance"):

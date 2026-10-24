@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 from higgsfield_client import NSFW, Cancelled, Completed, Failed, HiggsfieldClientError, SyncClient
+from higgsfield_client.http.client import RequestController, SyncRequestController
 from higgsfield_client.http.retry import NoRetry
 from higgsfield_client.http.transport import HttpTransport
 
@@ -91,7 +92,9 @@ def _find_url(data: Any) -> str | None:
 def wait(client: SyncClient, request_id: str, timeout: float, poll_delay: float, transport: httpx.BaseTransport | None = None) -> Path:
     if not REQUEST_RE.match(request_id):
         raise GenError(400, "Id permintaan tidak valid.")
-    ctl = client.get_request_controller(request_id)
+    # get_request_controller di SDK 0.2.0 selalu memakai alamat bawaan (BASE_URL), bukan base_url klien.
+    base = str(client._client.base_url).rstrip("/")
+    ctl = SyncRequestController(request_id, client._transport, **RequestController.build_urls(base, request_id))
     deadline = time.monotonic() + timeout
     try:
         while True:

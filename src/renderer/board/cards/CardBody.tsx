@@ -1,4 +1,5 @@
 import { memo, useState } from 'react'
+import { useReactFlow } from '@xyflow/react'
 import type { AssetDTO, CardDTO } from '../../../shared/board-types'
 
 const JENIS_LABEL: Record<CardDTO['type'], string> = {
@@ -53,6 +54,7 @@ function kindLabel(card: CardDTO): string {
 
 function NoteBody({ card }: { card: CardDTO }): React.JSX.Element {
   const [text, setText] = useState(card.content ?? '')
+  const { updateNodeData } = useReactFlow()
   return (
     <textarea
       className="card-note nodrag nowheel"
@@ -61,7 +63,10 @@ function NoteBody({ card }: { card: CardDTO }): React.JSX.Element {
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => {
-        if (text !== (card.content ?? '')) void window.alfonso.board.saveCards([{ id: card.id, content: text }])
+        if (text === (card.content ?? '')) return
+        void window.alfonso.board.saveCards([{ id: card.id, content: text }])
+        // Data node ikut diperbarui supaya menu kartu (mis. "Generate dari ini") memakai isi terbaru.
+        updateNodeData(card.id, { card: { ...card, content: text } })
       }}
     />
   )

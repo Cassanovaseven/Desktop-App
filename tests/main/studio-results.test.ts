@@ -103,3 +103,15 @@ test('tanpa posisi dan tanpa sumber → dekat tengah viewport board; video → k
   expect(r.card.y).toBeGreaterThan(500)
   expect(r.asset.originalName).toBe('proyek-pertama_motion_splash_kode_20261023_001.mp4')
 })
+
+test('hasil tanpa sumber di posisi yang sama tidak saling menumpuk persis', async () => {
+  const p = savePrompt(t.db, t.vault, { name: 'Pola', lane: 'kode', targetModel: 'svg', template: '<svg>[A]</svg>' })
+  const board = getActiveBoard(t.db)
+  const [g1] = createGenerations(t.db, { promptId: p.id, variables: { A: '1' } }, { boardId: board.id })
+  const [g2] = createGenerations(t.db, { promptId: p.id, variables: { A: '2' } }, { boardId: board.id })
+  const a = await saveResultAsset(t.db, t.vault, { generationId: g1.id, boardId: board.id, at: { x: 100, y: 50 }, file: tmpFile('a.svg', '<svg>1</svg>'), ext: 'svg', date: d })
+  const b = await saveResultAsset(t.db, t.vault, { generationId: g2.id, boardId: board.id, at: { x: 100, y: 50 }, file: tmpFile('b.svg', '<svg>2</svg>'), ext: 'svg', date: d })
+  expect([a.card.x, a.card.y]).toEqual([100, 50])
+  expect(b.card.x).toBe(100)
+  expect(b.card.y).toBe(50 + a.card.h + 20)
+})

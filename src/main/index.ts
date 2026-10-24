@@ -121,6 +121,8 @@ async function bootstrap(): Promise<void> {
   ingest = service
 
   // ---- Studio AI (Fase 3) ----
+  // Uji e2e di Linux tanpa keyring saja; di Windows safeStorage selalu memakai DPAPI dan baris ini tidak berlaku.
+  if (process.env.ALFONSO_E2E === '1' && process.platform === 'linux') safeStorage.setUsePlainTextEncryption(true)
   const keyStore = createKeyStore(db, safeStorage)
   keys = keyStore
   const remote = createRemoteAdapters({ sidecar: manager, db, readKey: () => keyStore.read(), comfyUrl: () => comfyUrl(appDb) })

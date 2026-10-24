@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ReactFlow, ReactFlowProvider, applyEdgeChanges, applyNodeChanges, useReactFlow,
+  ReactFlow, ReactFlowProvider, applyEdgeChanges, applyNodeChanges, useReactFlow, useStoreApi,
   type Connection, type Edge, type EdgeChange, type NodeChange, type Viewport as FlowViewport
 } from '@xyflow/react'
-import type { CardDTO, IngestEvent, Viewport } from '../../shared/board-types'
+import type { CardDTO, IngestEvent, Point, Viewport } from '../../shared/board-types'
 import { cardToNode, createSaveScheduler, linkToEdge, nodeToCardPatch, selectionFromCards, studioRequestFromCard, FLOW_PROPS, type CardNode } from './mapping'
 import { studioStore } from '../studio/studio-store'
 import { nodeTypes } from './cards/CardNode'
@@ -16,6 +16,8 @@ export interface BoardController {
   /** Kartu baru di tengah layar yang menunjuk ke aset yang sudah ada (tombol "Tambahkan ke Board"). */
   addAsset(assetId: string): void
   removeCards(ids: string[]): void
+  /** Titik tengah board yang sedang terlihat (koordinat kanvas), untuk kartu baru tanpa posisi. */
+  center(): Point
 }
 
 // Palette, Library, dan Inspector (di luar React Flow) memanggil Board lewat pengendali ini.
@@ -24,7 +26,8 @@ export const boardController = {
   addNote: (): void => controller?.addNote(),
   focusCard: (id: string): void => controller?.focusCard(id),
   addAsset: (assetId: string): void => controller?.addAsset(assetId),
-  removeCards: (ids: string[]): void => controller?.removeCards(ids)
+  removeCards: (ids: string[]): void => controller?.removeCards(ids),
+  center: (): Point | null => controller?.center() ?? null
 }
 
 const PASTE_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
@@ -37,6 +40,7 @@ function BoardInner(props: { initial: { id: string; nodes: CardNode[]; edges: Ed
   const boardId = props.initial.id
   const api = window.alfonso
   const flow = useReactFlow()
+  const store = useStoreApi()
   const wrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes] = useState<CardNode[]>(props.initial.nodes)
   const [edges, setEdges] = useState<Edge[]>(props.initial.edges)
@@ -82,12 +86,17 @@ function BoardInner(props: { initial: { id: string; nodes: CardNode[]; edges: Ed
       removeCards: (ids) => {
         setNodes((ns) => ns.filter((n) => !ids.includes(n.id)))
         removeCards(ids)
+      },
+      // Dari ukuran & geseran terakhir di store React Flow: tetap benar walau tab Board sedang tersembunyi (Studio aktif).
+      center: () => {
+        const { width, height, transform: [tx, ty, zoom] } = store.getState()
+        return { x: Math.round((width / 2 - tx) / zoom - 120), y: Math.round((height / 2 - ty) / zoom - 100) }
       }
     }
     return () => {
       controller = null
     }
-  }, [api, flow, centerPosition, addCards, removeCards, showMessage])
+  }, [api, flow, store, centerPosition, addCards, removeCards, showMessage])
 
   // Permintaan fokus (dari pencarian atau Inspector "Dipakai di") untuk kartu di board ini.
   const nodesRef = useRef(nodes)

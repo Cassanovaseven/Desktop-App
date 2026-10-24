@@ -196,3 +196,16 @@ test('klik kanan kartu → "Generate dari ini" membuka Studio dengan kartu sebag
   expect(studioStore.take()).toEqual({ sourceCardId: 'n7', sourceLabel: 'ide logo rubah', sourceText: 'ide logo rubah' })
   expect(screen.queryByRole('menu')).toBeNull()
 })
+test('catatan yang baru diedit → "Generate dari ini" memakai isi terbaru', async () => {
+  const { studioStore } = await import('../../src/renderer/studio/studio-store')
+  studioStore.reset()
+  studioStore.setShowPanel(vi.fn())
+  api.board.open.mockResolvedValueOnce({ id: 'b', name: 'Board Utama', viewport: null, cards: [note('n8', '')], links: [] })
+  render(<Board />)
+  const box = (await screen.findByLabelText('Isi catatan')) as HTMLTextAreaElement
+  fireEvent.change(box, { target: { value: 'ide lencana tim' } })
+  fireEvent.blur(box)
+  fireEvent.contextMenu(box.closest('.react-flow__node')!)
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Generate dari ini' }))
+  expect(studioStore.take()).toMatchObject({ sourceCardId: 'n8', sourceLabel: 'ide lencana tim', sourceText: 'ide lencana tim' })
+})

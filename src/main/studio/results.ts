@@ -33,10 +33,14 @@ function placement(db: DB, boardId: string, sourceCardId: string | null, at: Poi
     const k = (db.prepare("SELECT COUNT(*) AS n FROM links WHERE from_card_id = ? AND kind = 'hasil'").get(src.id) as { n: number }).n
     return { x: src.x + src.w + GAP, y: src.y + k * (h + 20) }
   }
-  if (at) return at
-  // Perkiraan tengah layar dari viewport React Flow yang tersimpan (x/y = geseran layar, bukan koordinat kanvas).
+  // Tanpa posisi: perkiraan tengah layar dari viewport React Flow yang tersimpan (x/y = geseran layar, bukan koordinat kanvas).
   const v = getBoardRow(db, boardId)?.viewport ?? { x: 0, y: 0, zoom: 1 }
-  return { x: (-v.x + 500) / v.zoom, y: (-v.y + 300) / v.zoom }
+  const p = at ?? { x: Math.round((-v.x + 300) / v.zoom), y: Math.round((-v.y + 200) / v.zoom) }
+  // Beberapa hasil di titik yang sama disusun ke bawah, bukan ditumpuk persis.
+  const taken = db.prepare('SELECT 1 FROM cards WHERE board_id = ? AND x = ? AND y = ?')
+  let y = p.y
+  for (let i = 0; i < 50 && taken.get(boardId, p.x, y); i++) y += h + 20
+  return { x: p.x, y }
 }
 
 /**

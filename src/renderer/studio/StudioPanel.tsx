@@ -6,6 +6,7 @@ import { AccountSettings } from './AccountSettings'
 import { GenerationList, upsertGeneration } from './GenerationList'
 import { CODE_MODEL_LABEL, COMFY_OFF, LANE_LABEL, PARAM_HINT, paramsToText, textToParams } from './params'
 import { studioStore, useStudioRequests } from './studio-store'
+import { boardController } from '../board/Board'
 
 // Variabel `[NAMA]` sama dengan aturan di proses utama (src/main/studio/prompts.ts).
 const VAR_RE = /\[([A-Z][A-Z0-9_]*)\]/g
@@ -142,7 +143,9 @@ export function StudioPanel(): React.JSX.Element {
     const p = dirty ? await save() : (await api.getPrompt(draft.baseId!))!
     const vars = Object.fromEntries(parseVariables(p.template).map((v) => [v, values[v] ?? '']))
     const send = async (confirmedCost: boolean): Promise<void> => {
-      const out = await api.generate({ promptId: p.id, variables: vars, sourceCardId: source?.cardId ?? null, confirmedCost })
+      // Tanpa kartu referensi, hasil ditaruh di tengah board yang terlihat (bila board pernah dibuka).
+      const at = source ? null : boardController.center()
+      const out = await api.generate({ promptId: p.id, variables: vars, sourceCardId: source?.cardId ?? null, ...(at ? { at } : {}), confirmedCost })
       setMessage(out.length > 1 ? `${out.length} generate masuk antrean.` : 'Generate masuk antrean.')
     }
     if (p.lane === 'cloud') {
