@@ -24,5 +24,6 @@ export const fixture = (name: string): string => path.resolve(__dirname, 'fixtur
 export interface AlfonsoTestHook {
   importPaths(paths: string[], at: { x: number; y: number }): Promise<unknown>
   fillBoard(count: number): void
+  fillLibrary(count: number): void
   watchFolder(dir: string): Promise<string>
 }

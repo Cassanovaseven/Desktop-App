@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { app, BrowserWindow, dialog } from 'electron'
 import fs from 'fs'
 import { join } from 'path'
@@ -7,7 +8,7 @@ import { resolveVaultPath } from './vault'
 import { createLogger } from './logger'
 import { openDatabase } from './db/database'
 import { alignFtsRowids } from './search'
-import { ensureAutoTags } from './library/tags'
+import { autoTagsFor, ensureAutoTags, refreshFts } from './library/tags'
 import { loadThemes } from './theme'
 import { SidecarManager, findPython } from './sidecar'
 import { registerIpc } from './ipc'
@@ -17,7 +18,7 @@ import { createSidecarExtractor, createSidecarModelClient, createSidecarTranscri
 import { createTranscriptModel } from './transcript-model'
 import { createFolderWatcher, type FolderWatcher } from './ingest/watcher'
 import { downloadUrl } from './ingest/url'
-import { DEFAULT_SIZE, getActiveBoard, insertCard } from './board/repo'
+import { DEFAULT_SIZE, getActiveBoard, insertAsset, insertCard } from './board/repo'
 
 // Harus sebelum `ready`; foldernya dibuat dulu.
 if (process.env.ALFONSO_USER_DATA) {
@@ -146,6 +147,19 @@ async function bootstrap(): Promise<void> {
     ;(globalThis as Record<string, unknown>).__alfonsoTest = {
       importPaths: (paths: string[], at: { x: number; y: number }) => service.importPaths(paths, at),
       watchFolder: (dir: string) => folderWatcher.add(dir),
+      // Aset palsu (tanpa file) untuk uji performa Library.
+      fillLibrary: (count: number) => {
+        testDb.transaction(() => {
+          for (let i = 0; i < count; i++) {
+            const name = i % 3 === 0 ? `gambar-${i}.png` : `dokumen-${i}.pdf`
+            const sha = crypto.createHash('sha256').update(`palsu-${i}`).digest('hex')
+            const a = insertAsset(testDb, { sha256: sha, vaultPath: `files/${sha.slice(0, 2)}/${sha}.bin`, originalName: name, mime: null, sizeBytes: i })
+            testDb.prepare("UPDATE assets SET extract_status = 'siap' WHERE id = ?").run(a.id)
+            for (const tag of autoTagsFor(name)) testDb.prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag) VALUES (?, ?)').run(a.id, tag)
+            refreshFts(testDb, a.id)
+          }
+        })()
+      },
       fillBoard: (count: number) => {
         const board = getActiveBoard(testDb)
         testDb.transaction(() => {
