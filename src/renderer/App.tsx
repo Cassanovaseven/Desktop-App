@@ -13,6 +13,7 @@ import { projectsController } from './projects/ProjectsPanel'
 import { libraryController } from './library/LibraryPanel'
 import { goToCard } from './navigation'
 import { workspace } from './workspace'
+import { studioStore } from './studio/studio-store'
 
 export default function App(): React.JSX.Element {
   const [sidecar, setSidecar] = useState<SidecarStatus | null>(null)
@@ -35,6 +36,10 @@ export default function App(): React.JSX.Element {
   }, [])
 
   const showPanel = (id: string): void => dockApi.current?.getPanel(id)?.api.setActive()
+  useEffect(() => {
+    studioStore.setShowPanel(() => showPanel('studio'))
+    return () => studioStore.setShowPanel(null)
+  }, [])
 
   const commands = useMemo(
     () =>
@@ -76,7 +81,18 @@ export default function App(): React.JSX.Element {
           showPanel('explorer')
           requestAnimationFrame(() => projectsController.newBoard(projectId))
         },
-        switchBoard: () => setPickerOpen(true)
+        switchBoard: () => setPickerOpen(true),
+        openStudio: (req) => studioStore.open(req),
+        generateFromSelection: () => {
+          const sel = workspace.get().selection
+          if (sel?.kind === 'card') studioStore.open({ sourceCardId: sel.cardId, sourceLabel: sel.content?.slice(0, 40) || 'Kartu terpilih', sourceText: sel.content })
+          else if (sel?.kind === 'asset' && sel.cardId) studioStore.open({ sourceCardId: sel.cardId, sourceLabel: 'Kartu terpilih' })
+          else {
+            setMessage('Pilih satu kartu di Board dulu.')
+            if (messageTimer.current) clearTimeout(messageTimer.current)
+            messageTimer.current = setTimeout(() => setMessage(null), 4000)
+          }
+        }
       }),
     [themes]
   )

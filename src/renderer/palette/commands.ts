@@ -1,5 +1,6 @@
 import type { AlfonsoApi, ThemeTokens } from '../../shared/types'
 import { sidecarLabel } from '../layout/layout'
+import type { StudioOpenRequest } from '../../shared/studio-types'
 
 export interface Command {
   id: string
@@ -20,6 +21,8 @@ export interface CommandContext {
   newProject(): void
   newBoard(): void
   switchBoard(): void
+  openStudio(req: StudioOpenRequest): void
+  generateFromSelection(): void
 }
 
 export function buildCommands(ctx: CommandContext): Command[] {
@@ -31,6 +34,10 @@ export function buildCommands(ctx: CommandContext): Command[] {
     { id: 'project.new', label: 'Proyek baru…', run: () => ctx.newProject() },
     { id: 'board.new', label: 'Board baru…', run: () => ctx.newBoard() },
     { id: 'board.switch', label: 'Pindah ke board…', run: () => ctx.switchBoard() },
+    { id: 'studio.open', label: 'Buka Studio', run: () => ctx.openStudio({}) },
+    { id: 'studio.newPrompt', label: 'Prompt baru…', run: () => ctx.openStudio({ newPrompt: true }) },
+    { id: 'studio.fromSelection', label: 'Generate dari kartu terpilih', run: () => ctx.generateFromSelection() },
+    { id: 'studio.account', label: 'Studio: Akun & biaya…', run: () => ctx.openStudio({ account: true }) },
     ...ctx.themes.map((t) => ({
       id: `theme.switch:${t.id}`,
       label: `Ganti tema: ${t.name}`,

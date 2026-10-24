@@ -18,10 +18,12 @@ type Fn = ReturnType<typeof vi.fn<() => void>>
 let nav: { openLibrary: Fn; searchLibrary: Fn; newProject: Fn; newBoard: Fn; switchBoard: Fn }
 let api: AlfonsoApi
 let cmds: Command[]
+let studioNav: { openStudio: ReturnType<typeof vi.fn<(req: object) => void>>; generateFromSelection: Fn }
 
 beforeEach(() => {
   applyThemeById = vi.fn(); showMessage = vi.fn(); resetLayout = vi.fn(); addNote = vi.fn(); openSearch = vi.fn()
   nav = { openLibrary: vi.fn(), searchLibrary: vi.fn(), newProject: vi.fn(), newBoard: vi.fn(), switchBoard: vi.fn() }
+  studioNav = { openStudio: vi.fn(), generateFromSelection: vi.fn() }
   api = {
     vault: { getPath: vi.fn(async () => 'C:/Vault'), openFolder: vi.fn(async () => {}) },
     theme: { list: vi.fn(async () => themes), getActiveId: vi.fn(async () => 'alfonso-gelap'), setActive: vi.fn(async () => {}) },
@@ -30,12 +32,12 @@ beforeEach(() => {
     watch: { add: vi.fn(async () => ({ message: 'Memantau folder: C:/Unduhan' })), remove: vi.fn(async () => ({ message: 'Tidak ada folder yang dipantau.' })) },
     transkrip: { downloadModel: vi.fn(async () => ({ state: 'siap' as const, model: 'small', message: 'Model transkrip siap.' })) }
   } as unknown as AlfonsoApi
-  cmds = buildCommands({ themes, api, resetLayout, showMessage, applyThemeById, addNote, openSearch, ...nav })
+  cmds = buildCommands({ themes, api, resetLayout, showMessage, applyThemeById, addNote, openSearch, ...nav, ...studioNav })
 })
 afterEach(() => cleanup())
 
 test('daftar perintah lengkap', () => {
-  expect(cmds.map(c => c.id)).toEqual(['board.addNote', 'search.files', 'library.open', 'library.search', 'project.new', 'board.new', 'board.switch', 'theme.switch:alfonso-gelap', 'theme.switch:alfonso-terang', 'vault.open', 'sidecar.status', 'transkrip.download', 'watch.add', 'watch.remove', 'layout.reset'])
+  expect(cmds.map(c => c.id)).toEqual(['board.addNote', 'search.files', 'library.open', 'library.search', 'project.new', 'board.new', 'board.switch', 'studio.open', 'studio.newPrompt', 'studio.fromSelection', 'studio.account', 'theme.switch:alfonso-gelap', 'theme.switch:alfonso-terang', 'vault.open', 'sidecar.status', 'transkrip.download', 'watch.add', 'watch.remove', 'layout.reset'])
   expect(cmds.find(c => c.id === 'theme.switch:alfonso-terang')!.label).toBe('Ganti tema: Alfonso Terang')
 })
 test('filter tidak peka huruf dan per kata', () => {
@@ -91,4 +93,13 @@ test('Fase 2: perintah Library, proyek, dan board', async () => {
     .toEqual(['Buka Library', 'Cari di Library…', 'Proyek baru…', 'Board baru…', 'Pindah ke board…'])
   for (const id of ['library.open', 'library.search', 'project.new', 'board.new', 'board.switch']) await cmds.find(c => c.id === id)!.run()
   for (const fn of Object.values(nav)) expect(fn).toHaveBeenCalledTimes(1)
+})
+
+test('Fase 3: perintah Studio', async () => {
+  const label = (id: string) => cmds.find(c => c.id === id)!.label
+  expect(['studio.open', 'studio.newPrompt', 'studio.fromSelection', 'studio.account'].map(label))
+    .toEqual(['Buka Studio', 'Prompt baru…', 'Generate dari kartu terpilih', 'Studio: Akun & biaya…'])
+  for (const id of ['studio.open', 'studio.newPrompt', 'studio.account', 'studio.fromSelection']) await cmds.find(c => c.id === id)!.run()
+  expect(studioNav.openStudio.mock.calls).toEqual([[{}], [{ newPrompt: true }], [{ account: true }]])
+  expect(studioNav.generateFromSelection).toHaveBeenCalledTimes(1)
 })

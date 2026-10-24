@@ -105,4 +105,6 @@ export interface StudioOpenRequest {
   promptId?: string | null
   /** Buka bagian Akun & biaya. */
   account?: boolean
+  /** Kosongkan editor untuk prompt baru. */
+  newPrompt?: boolean
 }

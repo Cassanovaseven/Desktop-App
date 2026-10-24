@@ -1,3 +1,4 @@
+import type { StudioOpenRequest } from '../../shared/studio-types'
 import type { Edge, Node } from '@xyflow/react'
 import type { CardDTO, CardPatch, LinkDTO } from '../../shared/board-types'
 import type { Selection } from '../workspace'
@@ -68,4 +69,13 @@ export function selectionFromCards(cards: CardDTO[], prev: Selection): Selection
   const c = cards[0]
   if (c.assetId) return { kind: 'asset', assetId: c.assetId, cardId: c.id }
   return { kind: 'card', cardId: c.id, type: c.type, content: c.content }
+}
+
+const TYPE_LABEL: Record<string, string> = { catatan: 'Catatan', tautan: 'Tautan', kode: 'Kode', grup: 'Grup', file: 'File', gambar: 'Gambar' }
+
+/** "Generate dari ini": kartu jadi referensi di Studio; isi catatan/tautan mengisi [SUMBER_TEKS]. */
+export function studioRequestFromCard(c: CardDTO): StudioOpenRequest {
+  const text = c.content?.trim() ? c.content : null
+  const label = c.asset?.originalName ?? (text ? (text.length > 40 ? text.slice(0, 40) + '…' : text) : TYPE_LABEL[c.type] ?? c.type)
+  return { sourceCardId: c.id, sourceLabel: label, sourceText: text }
 }

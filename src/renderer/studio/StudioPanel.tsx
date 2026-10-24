@@ -63,6 +63,7 @@ export function StudioPanel(): React.JSX.Element {
     const r = studioStore.take()
     if (!r) return
     if (r.account) setShowAccount(true)
+    if (r.newPrompt) resetDraft()
     if (r.sourceCardId) {
       setSource({ cardId: r.sourceCardId, label: r.sourceLabel ?? 'Kartu', text: r.sourceText ?? null })
       if (r.sourceText) setValues((v) => (v.SUMBER_TEKS ? v : { ...v, SUMBER_TEKS: r.sourceText!.slice(0, 20_000) }))
@@ -95,6 +96,13 @@ export function StudioPanel(): React.JSX.Element {
     setMessage(null)
     setComfyOff(false)
     void api.history(p.id).then(setHistory)
+  }
+
+  function resetDraft(): void {
+    setDraft(EMPTY)
+    setSaved(null)
+    setHistory([])
+    setValues({})
   }
 
   const set = (patch: Partial<Draft>): void => setDraft((d) => ({ ...d, ...patch }))
@@ -166,15 +174,7 @@ export function StudioPanel(): React.JSX.Element {
       <aside className="studio-library" aria-label="Prompt library">
         <div className="studio-row">
           <input aria-label="Cari prompt" placeholder="Cari prompt…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <button
-            type="button"
-            onClick={() => {
-              setDraft(EMPTY)
-              setSaved(null)
-              setHistory([])
-              setValues({})
-            }}
-          >
+          <button type="button" onClick={resetDraft}>
             Prompt baru
           </button>
         </div>

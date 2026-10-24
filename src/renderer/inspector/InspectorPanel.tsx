@@ -6,6 +6,10 @@ import { boardController } from '../board/Board'
 import { JENIS_LABEL } from '../library/LibraryPanel'
 import { formatDuration, TRANSKRIP_LABEL } from '../board/cards/CardBody'
 import { TagEditor } from './TagEditor'
+import type { CostEstimate, GenerationDTO } from '../../shared/studio-types'
+import { CostDialog } from '../studio/CostDialog'
+import { studioStore } from '../studio/studio-store'
+import { LANE_LABEL } from '../studio/params'
 
 const CARD_LABEL: Record<string, string> = { catatan: 'Catatan', tautan: 'Tautan', kode: 'Kode', grup: 'Grup', file: 'File', gambar: 'Gambar' }
 const num = (n: number, digits = 0): string => n.toLocaleString('id-ID', { minimumFractionDigits: digits, maximumFractionDigits: digits })
@@ -21,6 +25,92 @@ export function formatBytes(bytes: number | null): string {
 const formatDate = (iso: string): string => {
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+/** Asal-usul aset hasil generate (spec pilar 3) + Generate ulang satu klik. */
+function Origin(props: { assetId: string }): React.JSX.Element | null {
+  const api = window.alfonso.studio
+  const [g, setG] = useState<GenerationDTO | null>(null)
+  const [confirm, setConfirm] = useState<CostEstimate | null>(null)
+  const [note, setNote] = useState<string | null>(null)
+  useEffect(() => {
+    let live = true
+    void api.generationForAsset(props.assetId).then((x) => live && setG(x))
+    return () => {
+      live = false
+    }
+  }, [api, props.assetId])
+  if (!g) return null
+
+  const run = (confirmedCost: boolean): void =>
+    void api.regenerate(g.id, confirmedCost).then(
+      () => setNote('Generate ulang masuk antrean.'),
+      (e: Error) => setNote(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+    )
+  const vars = Object.entries(g.variables)
+  const params = Object.entries(g.params)
+  return (
+    <>
+      <h3>Asal-usul</h3>
+      <dl className="inspector-facts">
+        <dt>Prompt</dt>
+        <dd>{`${g.promptName ?? '—'} · versi ${g.promptVersion ?? 1}`}</dd>
+        <dt>Jalur</dt>
+        <dd>{LANE_LABEL[g.lane]}</dd>
+        <dt>Model</dt>
+        <dd>{g.model ?? '—'}</dd>
+        {g.lane === 'cloud' && (
+          <>
+            <dt>Biaya</dt>
+            <dd>{g.creditCost === null ? 'belum diketahui' : `${g.creditCost} kredit (perkiraan)`}</dd>
+          </>
+        )}
+        {vars.length > 0 && (
+          <>
+            <dt>Variabel</dt>
+            <dd>{vars.map(([k, v]) => `${k} = ${v}`).join(', ')}</dd>
+          </>
+        )}
+        {params.length > 0 && (
+          <>
+            <dt>Parameter</dt>
+            <dd>{params.map(([k, v]) => `${k}=${v}`).join(', ')}</dd>
+          </>
+        )}
+      </dl>
+      {g.promptText && <pre className="inspector-text inspector-origin">{g.promptText}</pre>}
+      <div className="inspector-actions">
+        <button
+          type="button"
+          onClick={() => (g.lane === 'cloud' ? void api.estimateGeneration(g.id).then(setConfirm) : run(false))}
+        >
+          Generate ulang
+        </button>
+        {g.promptId && (
+          <button type="button" onClick={() => studioStore.open({ promptId: g.promptId })}>
+            Buka prompt di Studio
+          </button>
+        )}
+        {g.promptId && (
+          <button type="button" onClick={() => void api.addExample(g.promptId!, props.assetId).then(() => setNote('Ditambahkan ke contoh hasil prompt.'))}>
+            Jadikan contoh hasil
+          </button>
+        )}
+      </div>
+      {note && <p className="inspector-muted" role="status">{note}</p>}
+      {confirm && (
+        <CostDialog
+          model={g.model ?? ''}
+          estimate={confirm}
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => {
+            setConfirm(null)
+            run(true)
+          }}
+        />
+      )}
+    </>
+  )
 }
 
 function AssetView(props: { assetId: string }): React.JSX.Element {
@@ -90,6 +180,8 @@ function AssetView(props: { assetId: string }): React.JSX.Element {
           Tampilkan di folder
         </button>
       </div>
+
+      <Origin assetId={asset.id} />
 
       <h3>Tag</h3>
       <TagEditor

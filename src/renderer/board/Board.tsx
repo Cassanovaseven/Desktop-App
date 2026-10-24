@@ -4,7 +4,8 @@ import {
   type Connection, type Edge, type EdgeChange, type NodeChange, type Viewport as FlowViewport
 } from '@xyflow/react'
 import type { CardDTO, IngestEvent, Viewport } from '../../shared/board-types'
-import { cardToNode, createSaveScheduler, linkToEdge, nodeToCardPatch, selectionFromCards, FLOW_PROPS, type CardNode } from './mapping'
+import { cardToNode, createSaveScheduler, linkToEdge, nodeToCardPatch, selectionFromCards, studioRequestFromCard, FLOW_PROPS, type CardNode } from './mapping'
+import { studioStore } from '../studio/studio-store'
 import { nodeTypes } from './cards/CardNode'
 import { ASSET_DRAG_TYPE } from '../library/LibraryPanel'
 import { useWorkspace, workspace } from '../workspace'
@@ -40,6 +41,7 @@ function BoardInner(props: { initial: { id: string; nodes: CardNode[]; edges: Ed
   const [nodes, setNodes] = useState<CardNode[]>(props.initial.nodes)
   const [edges, setEdges] = useState<Edge[]>(props.initial.edges)
   const [message, setMessage] = useState<string | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; card: CardDTO } | null>(null)
   const viewportTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const scheduler = useMemo(() => createSaveScheduler((p) => void api.board.saveCards(p), 2000), [api])
@@ -115,11 +117,33 @@ function BoardInner(props: { initial: { id: string; nodes: CardNode[]; edges: Ed
             if (e.asset && n.data.card.assetId === e.asset.id) return { ...n, data: { card: { ...n.data.card, asset: e.asset } } }
             return n
           }),
-          ...e.newCards.filter((c) => !ns.some((n) => n.id === c.id)).map(cardToNode)
+          // Kartu baru bisa untuk board lain (mis. hasil generate yang dimulai di board sebelumnya).
+          ...e.newCards.filter((c) => c.boardId === boardId && !ns.some((n) => n.id === c.id)).map(cardToNode)
         ])
+        if (e.newLinks?.length) {
+          const ids = new Set(e.newCards.filter((c) => c.boardId === boardId).map((c) => c.id))
+          const fresh = e.newLinks.filter((l) => ids.has(l.toId))
+          if (fresh.length) setEdges((es) => [...es, ...fresh.filter((l) => !es.some((x) => x.id === l.id)).map(linkToEdge)])
+        }
       }),
-    [api]
+    [api, boardId]
   )
+
+  useEffect(() => {
+    if (!menu) return
+    const close = (): void => setMenu(null)
+    window.addEventListener('pointerdown', close)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('pointerdown', close)
+      window.removeEventListener('keydown', close)
+    }
+  }, [menu])
+
+  const onNodeContextMenu = useCallback((e: React.MouseEvent, node: CardNode) => {
+    e.preventDefault()
+    setMenu({ x: e.clientX, y: e.clientY, card: node.data.card })
+  }, [])
 
   useEffect(() => {
     const flush = (): void => scheduler.flush()
@@ -239,10 +263,25 @@ function BoardInner(props: { initial: { id: string; nodes: CardNode[]; edges: Ed
         onNodeDragStop={onNodeDragStop}
         onMoveEnd={onMoveEnd}
         onSelectionChange={onSelectionChange}
+        onNodeContextMenu={onNodeContextMenu}
         defaultViewport={props.initial.viewport ?? { x: 0, y: 0, zoom: 1 }}
       />
       {nodes.length === 0 && <div className="board-empty">Drop file ke sini, tempel teks atau tautan, atau tekan Ctrl+K → Tambah catatan.</div>}
       {message && <div className="board-toast" role="status">{message}</div>}
+      {menu && (
+        <div className="card-menu" role="menu" style={{ left: menu.x, top: menu.y }} onPointerDown={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              studioStore.open(studioRequestFromCard(menu.card))
+              setMenu(null)
+            }}
+          >
+            Generate dari ini
+          </button>
+        </div>
+      )}
     </div>
   )
 }

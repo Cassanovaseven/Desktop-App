@@ -46,3 +46,12 @@ test('Fase 2: pilihan kartu → isi Inspector', async () => {
   expect(selectionFromCards([], { kind: 'asset', assetId: 'a1', cardId: 'c1' })).toBeNull()
   expect(selectionFromCards([], { kind: 'cards', count: 2 })).toBeNull()
 })
+
+import { studioRequestFromCard } from '../../src/renderer/board/mapping'
+test('permintaan Studio dari kartu: label dari nama aset atau isi catatan', () => {
+  const base = { id: 'c', boardId: 'b', x: 0, y: 0, w: 1, h: 1, z: 0, style: null }
+  expect(studioRequestFromCard({ ...base, type: 'gambar', assetId: 'a', content: null, asset: { id: 'a', originalName: 'foto.png', mime: 'image/png', sizeBytes: 1, status: 'siap', previewUrl: null, error: null, transkrip: null, meta: null } }))
+    .toEqual({ sourceCardId: 'c', sourceLabel: 'foto.png', sourceText: null })
+  expect(studioRequestFromCard({ ...base, type: 'catatan', assetId: null, asset: null, content: 'x'.repeat(100) }).sourceLabel).toBe('x'.repeat(40) + '…')
+  expect(studioRequestFromCard({ ...base, type: 'catatan', assetId: null, asset: null, content: '' })).toEqual({ sourceCardId: 'c', sourceLabel: 'Catatan', sourceText: null })
+})

@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event'
 import { InspectorPanel } from '../../src/renderer/inspector/InspectorPanel'
 import { workspace } from '../../src/renderer/workspace'
 import type { AssetDetail } from '../../src/shared/library-types'
+import type { GenerationDTO } from '../../src/shared/studio-types'
+import { studioStore } from '../../src/renderer/studio/studio-store'
 
 let detail: AssetDetail
 const api = {
@@ -16,7 +18,13 @@ const api = {
   },
   ingest: { retry: vi.fn(async () => {}), onEvent: vi.fn(() => () => {}) },
   projects: { setActiveBoard: vi.fn(async () => {}) },
-  board: { locate: vi.fn() }
+  board: { locate: vi.fn() },
+  studio: {
+    generationForAsset: vi.fn(async (): Promise<GenerationDTO | null> => null),
+    regenerate: vi.fn(async () => []),
+    estimateGeneration: vi.fn(async () => ({ perItem: 2, count: 1, total: 2 })),
+    addExample: vi.fn(async () => ({}))
+  }
 }
 beforeEach(() => {
   detail = {
@@ -137,4 +145,52 @@ test('teks panjang diberi catatan dipotong', async () => {
   workspace.select({ kind: 'asset', assetId: 'a1' })
   render(<InspectorPanel />)
   expect(await screen.findByText(/5\.000 dari 12\.000 karakter/)).toBeTruthy()
+})
+
+const gen = (over: Partial<GenerationDTO>): GenerationDTO => ({
+  id: 'g1', promptId: 'p1', promptName: 'Ikon aplikasi', promptVersion: 2, promptText: 'App icon of buku', variables: { SIMBOL: 'buku' }, model: 'svg',
+  params: { seed: 7, jumlah: 1 }, lane: 'kode', source: 'svg', creditCost: 0, status: 'selesai', error: null, resultAssetId: 'a1', sourceCardId: null,
+  createdAt: 't', updatedAt: null, ...over
+})
+
+test('aset hasil generate: asal-usul tampil; Generate ulang jalur kode langsung jalan', async () => {
+  api.studio.generationForAsset.mockResolvedValueOnce(gen({}))
+  workspace.select({ kind: 'asset', assetId: 'a1' })
+  const user = userEvent.setup()
+  render(<InspectorPanel />)
+  expect(await screen.findByRole('heading', { name: 'Asal-usul' })).toBeTruthy()
+  expect(screen.getByText('Ikon aplikasi · versi 2')).toBeTruthy()
+  expect(screen.getByText('SIMBOL = buku')).toBeTruthy()
+  expect(screen.getByText('seed=7, jumlah=1')).toBeTruthy()
+  expect(screen.getByText('App icon of buku')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Generate ulang' }))
+  expect(api.studio.regenerate).toHaveBeenCalledWith('g1', false)
+  expect(await screen.findByText('Generate ulang masuk antrean.')).toBeTruthy()
+})
+
+test('Generate ulang jalur cloud tetap minta konfirmasi biaya', async () => {
+  api.studio.generationForAsset.mockResolvedValueOnce(gen({ lane: 'cloud', model: 'm/x', source: 'higgsfield', creditCost: 2 }))
+  workspace.select({ kind: 'asset', assetId: 'a1' })
+  const user = userEvent.setup()
+  render(<InspectorPanel />)
+  await user.click(await screen.findByRole('button', { name: 'Generate ulang' }))
+  expect((await screen.findByRole('dialog')).textContent).toContain('2 kredit')
+  expect(api.studio.regenerate).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: 'Konfirmasi' }))
+  expect(api.studio.regenerate).toHaveBeenCalledWith('g1', true)
+})
+
+test('aset biasa (bukan hasil generate) tidak punya bagian Asal-usul; Buka prompt di Studio mengirim permintaan', async () => {
+  workspace.select({ kind: 'asset', assetId: 'a1' })
+  render(<InspectorPanel />)
+  await screen.findByRole('heading', { name: 'rapat.mp4' })
+  await waitFor(() => expect(api.studio.generationForAsset).toHaveBeenCalled())
+  expect(screen.queryByRole('heading', { name: 'Asal-usul' })).toBeNull()
+  cleanup()
+  studioStore.reset()
+  api.studio.generationForAsset.mockResolvedValueOnce(gen({}))
+  const user = userEvent.setup()
+  render(<InspectorPanel />)
+  await user.click(await screen.findByRole('button', { name: 'Buka prompt di Studio' }))
+  expect(studioStore.take()).toEqual({ promptId: 'p1' })
 })
