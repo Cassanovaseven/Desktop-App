@@ -69,7 +69,9 @@ export function createIngestService(o: IngestServiceOptions) {
     const base = [`jenis:${kindForFile(name).jenis}`, 'jalur:impor']
     if (!assetId) return base
     const saved = (db.prepare('SELECT tag FROM asset_tags WHERE asset_id = ?').all(assetId) as { tag: string }[]).map((r) => r.tag)
-    return [...new Set([...base, ...saved])]
+    // Hasil generate sudah punya jalur sendiri (cloud/lokal/kode), bukan impor.
+    const own = saved.some((t) => t.startsWith('jalur:')) ? base.filter((t) => !t.startsWith('jalur:')) : base
+    return [...new Set([...own, ...saved])]
   }
 
   const saveTags = (assetId: string, tags: string[]): void => {
