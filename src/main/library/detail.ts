@@ -46,12 +46,15 @@ export function getAssetDetail(db: DB, id: string): AssetDetail | null {
   }
 }
 
-/** Path absolut file aset, hanya bila berada di dalam folder files/ vault (untuk shell.showItemInFolder). */
+/** Path absolut file aset, hanya bila berada di dalam folder files/ atau generated/ vault (untuk shell.showItemInFolder). */
 export function assetFilePath(db: DB, vault: VaultPaths, id: string): string {
   const row = db.prepare('SELECT vault_path FROM assets WHERE id = ?').get(id) as { vault_path: string } | undefined
   if (!row) throw new Error('Aset tidak ditemukan')
   const full = path.resolve(vault.root, row.vault_path)
-  const rel = path.relative(vault.files, full)
-  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('Lokasi file aset tidak valid')
+  const inside = (dir: string): boolean => {
+    const rel = path.relative(dir, full)
+    return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel)
+  }
+  if (!inside(vault.files) && !inside(vault.generated)) throw new Error('Lokasi file aset tidak valid')
   return full
 }

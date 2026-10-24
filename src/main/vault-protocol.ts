@@ -4,9 +4,9 @@ import { pathToFileURL } from 'url'
 import { net, protocol } from 'electron'
 
 export const VAULT_SCHEME = 'alfonso-vault'
-const ALLOWED_DIRS = new Set(['files', 'thumbs'])
+const ALLOWED_DIRS = new Set(['files', 'thumbs', 'generated'])
 
-// Murni (tanpa Electron) supaya bisa dites: hanya file di vault/files dan vault/thumbs yang boleh keluar.
+// Murni (tanpa Electron) supaya bisa dites: hanya file di vault/files, vault/thumbs, dan vault/generated yang boleh keluar.
 export function handleVaultRequest(vaultRoot: string, url: string): { path: string } | { status: 400 | 404 } {
   let parsed: URL
   try {

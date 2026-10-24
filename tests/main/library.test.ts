@@ -179,13 +179,17 @@ test('detail: tag (otomatis ditandai), cuplikan ≤ 5.000 karakter, dipakai di b
   expect(getAssetDetail(t.db, 'tidak-ada')).toBeNull()
 })
 
-test('path untuk "Tampilkan di folder" selalu di dalam files/', () => {
+test('path untuk "Tampilkan di folder" selalu di dalam files/ atau generated/', () => {
   const id = seed('a.pdf')
   const p = assetFilePath(t.db, t.vault, id)
   expect(path.relative(t.vault.files, p).startsWith('..')).toBe(false)
   t.db.prepare('UPDATE assets SET vault_path = ? WHERE id = ?').run('files/../alfonso.db', id)
   expect(() => assetFilePath(t.db, t.vault, id)).toThrow()
   t.db.prepare('UPDATE assets SET vault_path = ? WHERE id = ?').run('thumbs/x.webp', id)
+  expect(() => assetFilePath(t.db, t.vault, id)).toThrow()
+  t.db.prepare('UPDATE assets SET vault_path = ? WHERE id = ?').run('generated/2026-10/x.png', id)
+  expect(assetFilePath(t.db, t.vault, id)).toBe(path.join(t.vault.generated, '2026-10', 'x.png'))
+  t.db.prepare('UPDATE assets SET vault_path = ? WHERE id = ?').run('generated/../alfonso.db', id)
   expect(() => assetFilePath(t.db, t.vault, id)).toThrow()
   expect(() => assetFilePath(t.db, t.vault, 'tidak-ada')).toThrow()
 })

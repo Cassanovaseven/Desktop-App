@@ -38,3 +38,10 @@ test('traversal, folder lain, dan URL aneh → 400 atau tidak keluar dari folder
   }
   expect(handleVaultRequest(t.vault.root, 'alfonso-vault://files/%2e%2e/alfonso.db')).not.toHaveProperty('path')
 })
+test('hasil generate di generated/ dilayani (Fase 3), prompts/ tidak', () => {
+  fs.mkdirSync(path.join(t.vault.generated, '2026-10'), { recursive: true })
+  fs.writeFileSync(path.join(t.vault.generated, '2026-10', 'a_b.png'), 'png')
+  fs.writeFileSync(path.join(t.vault.prompts, 'p.json'), '{}')
+  expect(handleVaultRequest(t.vault.root, vaultUrl('generated/2026-10/a_b.png'))).toEqual({ path: path.join(t.vault.generated, '2026-10', 'a_b.png') })
+  expect(handleVaultRequest(t.vault.root, vaultUrl('prompts/p.json'))).toEqual({ status: 400 })
+})
