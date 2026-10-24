@@ -4,7 +4,7 @@ import type { SidecarStatus } from '../../shared/types'
 export interface PanelDef {
   id: string
   title: string
-  component: 'placeholder' | 'queue' | 'board' | 'projects' | 'library' | 'inspector'
+  component: 'placeholder' | 'queue' | 'board' | 'projects' | 'library' | 'inspector' | 'studio'
   placeholder?: string
 }
 
@@ -12,7 +12,7 @@ export const PANELS: PanelDef[] = [
   { id: 'explorer', title: 'Proyek', component: 'projects' },
   { id: 'library', title: 'Library', component: 'library' },
   { id: 'board', title: 'Board', component: 'board' },
-  { id: 'studio', title: 'Studio', component: 'placeholder', placeholder: 'Segera hadir — Fase 3' },
+  { id: 'studio', title: 'Studio', component: 'studio' },
   { id: 'deck', title: 'Deck', component: 'placeholder', placeholder: 'Segera hadir — Fase 4' },
   { id: 'inspector', title: 'Inspector', component: 'inspector' },
   { id: 'queue', title: 'Antrean & Log', component: 'queue' }

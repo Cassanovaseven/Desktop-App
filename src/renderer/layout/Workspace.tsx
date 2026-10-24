@@ -6,6 +6,7 @@ import { Board } from '../board/Board'
 import { ProjectsPanel } from '../projects/ProjectsPanel'
 import { LibraryPanel } from '../library/LibraryPanel'
 import { InspectorPanel } from '../inspector/InspectorPanel'
+import { StudioPanel } from '../studio/StudioPanel'
 
 const SidecarContext = createContext<SidecarStatus | null>(null)
 
@@ -14,6 +15,7 @@ function Placeholder(props: IDockviewPanelProps<{ text?: string }>): React.JSX.E
   if (props.api.id === 'board') return <Board />
   if (props.api.id === 'explorer') return <ProjectsPanel />
   if (props.api.id === 'inspector') return <InspectorPanel />
+  if (props.api.id === 'studio') return <StudioPanel />
   return <div className="panel-placeholder">{props.params.text}</div>
 }
 
@@ -32,7 +34,8 @@ const components = {
   board: () => <Board />,
   projects: () => <ProjectsPanel />,
   library: () => <LibraryPanel />,
-  inspector: () => <InspectorPanel />
+  inspector: () => <InspectorPanel />,
+  studio: () => <StudioPanel />
 }
 const theme = { name: 'alfonso', className: 'dockview-theme-alfonso' }
 

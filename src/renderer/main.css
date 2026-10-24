@@ -600,3 +600,234 @@ body {
   width: 100%;
   box-sizing: border-box;
 }
+
+/* Fase 3: Studio AI. */
+.studio-panel {
+  height: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(320px, 1fr) minmax(220px, 300px);
+  gap: var(--space-2);
+  padding: var(--space-2);
+  font-size: 0.92em;
+  overflow: hidden;
+}
+
+.studio-library,
+.studio-editor,
+.studio-history {
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.studio-panel button,
+.studio-panel input,
+.studio-panel select,
+.studio-panel textarea,
+.studio-dialog button {
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+}
+
+.studio-panel button:hover,
+.studio-dialog button:hover {
+  border-color: var(--color-accent);
+}
+
+.studio-panel button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.studio-panel button.primary,
+.studio-dialog button.primary {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+.studio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: flex-end;
+}
+
+.studio-row label,
+.studio-block,
+.studio-vars label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.studio-row input {
+  min-width: 0;
+  flex: 1 1 140px;
+}
+
+.studio-template {
+  min-height: 160px;
+  font-family: var(--font-family-mono);
+  resize: vertical;
+}
+
+.studio-params {
+  min-height: 60px;
+  font-family: var(--font-family-mono);
+  resize: vertical;
+}
+
+.studio-vars {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-2);
+}
+
+.studio-prompts,
+.studio-generations,
+.studio-costs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.studio-prompts button {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+}
+
+.studio-prompts button.selected {
+  border-color: var(--color-accent);
+}
+
+.studio-costs li {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.studio-costs li span:first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio-source,
+.studio-workflow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.studio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.studio-message {
+  color: var(--color-success);
+}
+
+.studio-account {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+
+.studio-gen {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.studio-gen-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.studio-badge.gagal {
+  color: var(--color-danger);
+}
+
+.studio-badge.selesai {
+  color: var(--color-success);
+}
+
+.studio-badge.berjalan,
+.studio-badge.antre {
+  color: var(--color-warning);
+}
+
+.studio-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.studio-dialog {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-4);
+  max-width: 420px;
+}
+
+.studio-cost {
+  font-weight: 600;
+}
+
+.inspector-origin {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.card-menu {
+  position: fixed;
+  z-index: 40;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+}
+
+.card-menu button {
+  font: inherit;
+  color: var(--color-text);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  padding: var(--space-1) var(--space-2);
+}
+
+.card-menu button:hover {
+  background: var(--color-surface-alt);
+}

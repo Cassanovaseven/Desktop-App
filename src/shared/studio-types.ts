@@ -96,4 +96,13 @@ export interface StudioEvent {
 }
 
 /** Peristiwa yang membuka Studio dari luar (Board, palette, Inspector). */
-export interface StudioOpenRequest { sourceCardId?: string | null; promptId?: string | null }
+export interface StudioOpenRequest {
+  sourceCardId?: string | null
+  /** Nama singkat kartu sumber untuk ditampilkan. */
+  sourceLabel?: string | null
+  /** Isi teks kartu sumber; mengisi variabel [SUMBER_TEKS] bila ada. */
+  sourceText?: string | null
+  promptId?: string | null
+  /** Buka bagian Akun & biaya. */
+  account?: boolean
+}
