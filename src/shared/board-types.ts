@@ -56,6 +56,8 @@ export interface IngestEvent {
   newCards: CardDTO[]
   /** Kartu yang sudah ada dan berubah (mis. kartu tautan yang kini menunjuk ke isi unduhan). */
   updatedCards?: CardDTO[]
+  /** Panah baru (mis. kartu sumber → hasil generate). */
+  newLinks?: LinkDTO[]
 }
 
 export interface SearchHit { assetId: string; cardIds: string[]; originalName: string; snippet: string }

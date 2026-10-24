@@ -2,7 +2,7 @@ import { test, expect, beforeEach, afterEach } from 'vitest'
 import { tmpVault, type TmpVault } from './helpers'
 import { savePrompt } from '../../src/main/studio/prompts'
 import {
-  createGenerations, getGeneration, generationForAsset, listGenerations, markFailed, markRunning, regenerateRequest, setExternalId, GEN_JOB
+  createGenerations, getGeneration, generationForAsset, listGenerations, markFailed, markRunning, regenerateRequest, setExternalId
 } from '../../src/main/studio/generations'
 import { estimate, getCostTable, setModelCost } from '../../src/main/studio/costs'
 import { getActiveBoard, insertCard } from '../../src/main/board/repo'
@@ -40,7 +40,7 @@ test('jumlah 4 → 4 generation antre + 4 job; teks prompt terisi; seed berbeda 
   expect(gens.map((g) => g.params.seed)).toEqual([7, 8, 9, 10])
   expect(gens.every((g) => g.params.jumlah === 1 && g.params.rasio === '1:1')).toBe(true)
   const j = jobs()
-  expect(j.map((x) => [x.kind, x.status])).toEqual(Array(4).fill([GEN_JOB, 'antre']))
+  expect(j.map((x) => [x.kind, x.status])).toEqual(Array(4).fill(['generate:cloud', 'antre']))
   expect(JSON.parse(j[0].payload_json)).toEqual({ generationId: gens[0].id, boardId: board.id, at: null })
   expect(listGenerations(t.db).map((g) => g.id)).toEqual([...gens].reverse().map((g) => g.id))
 })

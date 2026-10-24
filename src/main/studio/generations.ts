@@ -9,7 +9,9 @@ import { estimate } from './costs'
 
 type DB = Database.Database
 
-export const GEN_JOB = 'generate'
+/** Jenis job per jalur: jalur kode dijalankan satu per satu (satu jendela render), cloud/lokal boleh bersamaan. */
+export const genJobKind = (lane: Lane): string => `generate:${lane}`
+export const GEN_JOB_KINDS = ['generate:kode', 'generate:cloud', 'generate:lokal']
 export const MAX_COUNT = 8
 
 export interface GenJobPayload { generationId: string; boardId: string; at: Point | null }
@@ -110,7 +112,7 @@ export function createGenerations(db: DB, req: GenerateRequest, ctx: { boardId: 
       insert.run(id, prompt.id, prompt.version, JSON.stringify(vars), prompt.targetModel, JSON.stringify(p), prompt.lane, cost.perItem,
         req.sourceCardId ?? null, ts, text, source, ts)
       const payload: GenJobPayload = { generationId: id, boardId: ctx.boardId, at: req.at ?? null }
-      insertJob(db, GEN_JOB, payload as unknown as Record<string, unknown>)
+      insertJob(db, genJobKind(prompt.lane), payload as unknown as Record<string, unknown>)
       ids.push(id)
     }
   })()
