@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from . import __version__, transkrip
 from .extract import ExtractError, extract_file
 from .generate import GenError
-from .generate import higgsfield
+from .generate import comfyui, higgsfield
 
 TOKEN_HEADER = "X-Alfonso-Token"
 KEY_HEADER = "X-Alfonso-Key"
@@ -43,6 +43,18 @@ class HiggsfieldSubmit(BaseModel):
 
 class HiggsfieldWait(BaseModel):
     request_id: str
+
+
+class ComfySubmit(BaseModel):
+    base_url: str
+    workflow_path: str
+    values: dict[str, str | int | float | None]
+    reference_path: str | None = None
+
+
+class ComfyWait(BaseModel):
+    base_url: str
+    prompt_id: str
 
 
 def err(status: int, detail: str) -> JSONResponse:
@@ -118,6 +130,28 @@ def create_app(
     def hf_wait(req: HiggsfieldWait, request: Request):
         client = hf_client(request)
         path = higgsfield.wait(client, req.request_id, wait_timeout, poll_delay, http_transport)
+        return {"path": str(path), "ext": path.suffix.lstrip("."), "temp_dir": str(path.parent)}
+
+    @app.get("/generate/comfyui/status")
+    def comfy_status(base_url: str):
+        comfyui.check_url(base_url)
+        return {"berjalan": comfyui.is_running(base_url, http_transport)}
+
+    @app.post("/generate/comfyui/submit")
+    def comfy_submit(req: ComfySubmit):
+        wf = vault_path(req.workflow_path)
+        if isinstance(wf, JSONResponse):
+            return wf
+        ref = None
+        if req.reference_path:
+            ref = vault_path(req.reference_path)
+            if isinstance(ref, JSONResponse):
+                return ref
+        return {"prompt_id": comfyui.submit(req.base_url, wf, req.values, ref, http_transport)}
+
+    @app.post("/generate/comfyui/wait")
+    def comfy_wait(req: ComfyWait):
+        path = comfyui.wait(req.base_url, req.prompt_id, wait_timeout, poll_delay, http_transport)
         return {"path": str(path), "ext": path.suffix.lstrip("."), "temp_dir": str(path.parent)}
 
     @app.post("/extract")
