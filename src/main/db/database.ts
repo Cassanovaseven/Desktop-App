@@ -4,7 +4,15 @@ import schemaSql from './schema.sql?raw'
 // Migrasi berurutan: indeks i menaikkan versi i+1 → i+2. Hanya menambah, tidak pernah menghapus data.
 const MIGRATIONS = [
   // v2 (2026-10-23, disetujui Cassanova): metadata hasil ekstraksi per asset (durasi, ukuran, warna).
-  'ALTER TABLE assets ADD COLUMN meta_json TEXT'
+  'ALTER TABLE assets ADD COLUMN meta_json TEXT',
+  // v3 (2026-10-24, disetujui Cassanova): Studio AI — parameter bawaan prompt dan asal-usul lengkap tiap generate.
+  `ALTER TABLE prompts ADD COLUMN params_json TEXT;
+   ALTER TABLE prompts ADD COLUMN created_at TEXT;
+   ALTER TABLE generations ADD COLUMN prompt_text TEXT;
+   ALTER TABLE generations ADD COLUMN source TEXT;
+   ALTER TABLE generations ADD COLUMN external_id TEXT;
+   ALTER TABLE generations ADD COLUMN error TEXT;
+   ALTER TABLE generations ADD COLUMN updated_at TEXT;`
 ]
 export const SCHEMA_VERSION = 1 + MIGRATIONS.length
 

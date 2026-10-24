@@ -16,14 +16,14 @@ afterEach(() => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
-test('semua tabel ada dan versi skema terbaru (2)', () => {
+test('semua tabel ada dan versi skema terbaru (3)', () => {
   const db = open(dbPath)
   const t = db.prepare("SELECT name FROM sqlite_master WHERE type IN ('table')").all().map((r: any) => r.name)
   for (const n of ['projects','boards','assets','asset_tags','cards','links','prompts','generations','jobs','settings','assets_fts']) expect(t).toContain(n)
-  expect(db.pragma('user_version', { simple: true })).toBe(2)
+  expect(db.pragma('user_version', { simple: true })).toBe(3)
   expect(db.prepare('SELECT name FROM pragma_table_info(?)').all('assets').map((r: any) => r.name)).toContain('meta_json')
 })
-test('database versi 1 dimigrasi ke versi 2 tanpa kehilangan data', () => {
+test('database versi 1 dimigrasi ke versi terbaru tanpa kehilangan data', () => {
   // Database Fase 1A: skema asli tanpa meta_json.
   const Database = require('better-sqlite3')
   const old = new Database(dbPath)
@@ -32,10 +32,27 @@ test('database versi 1 dimigrasi ke versi 2 tanpa kehilangan data', () => {
   old.prepare("INSERT INTO assets (id, sha256, vault_path, original_name, extract_status, created_at) VALUES ('a1','s','files/x','x.pdf','siap','t')").run()
   old.close()
   const db = open(dbPath)
-  expect(db.pragma('user_version', { simple: true })).toBe(2)
+  expect(db.pragma('user_version', { simple: true })).toBe(3)
   expect(db.prepare('SELECT original_name, meta_json FROM assets').get()).toEqual({ original_name: 'x.pdf', meta_json: null })
   db.close()
-  expect(open(dbPath).pragma('user_version', { simple: true })).toBe(2)
+  expect(open(dbPath).pragma('user_version', { simple: true })).toBe(3)
+})
+const cols = (db: Database.Database, t: string): string[] => db.prepare('SELECT name FROM pragma_table_info(?)').all(t).map((r: any) => r.name)
+test('migrasi v3: kolom prompt dan generation baru, data v2 tetap utuh', () => {
+  const Database = require('better-sqlite3')
+  const old = new Database(dbPath)
+  old.exec(require('fs').readFileSync(require('path').join(__dirname, '../../src/main/db/schema.sql'), 'utf8'))
+  old.exec('ALTER TABLE assets ADD COLUMN meta_json TEXT')
+  old.exec('PRAGMA user_version = 2')
+  old.prepare("INSERT INTO prompts (id, name, lane, template) VALUES ('p1','Ikon','cloud','App icon [SIMBOL]')").run()
+  old.prepare("INSERT INTO generations (id, prompt_id, lane, status, created_at) VALUES ('g1','p1','cloud','selesai','t')").run()
+  old.close()
+  const db = open(dbPath)
+  expect(db.pragma('user_version', { simple: true })).toBe(3)
+  expect(cols(db, 'prompts')).toEqual(expect.arrayContaining(['params_json', 'created_at']))
+  expect(cols(db, 'generations')).toEqual(expect.arrayContaining(['prompt_text', 'source', 'external_id', 'error', 'updated_at']))
+  expect(db.prepare('SELECT name, template, version FROM prompts').get()).toEqual({ name: 'Ikon', template: 'App icon [SIMBOL]', version: 1 })
+  expect(db.prepare('SELECT prompt_id, status, error FROM generations').get()).toEqual({ prompt_id: 'p1', status: 'selesai', error: null })
 })
 test('WAL dan foreign key aktif', () => {
   const db = open(dbPath)
