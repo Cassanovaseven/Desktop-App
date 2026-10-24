@@ -67,6 +67,8 @@ export interface GenerateRequest {
   sourceCardId?: string | null
   /** Posisi kartu hasil bila tidak ada kartu sumber (mis. tengah layar Board). */
   at?: Point | null
+  /** Menimpa parameter bawaan prompt (dipakai Generate ulang dan formulir Studio). */
+  params?: PromptParams
   /** Jalur cloud wajib true: pengguna sudah melihat perkiraan biaya dan menyetujuinya. */
   confirmedCost?: boolean
 }
