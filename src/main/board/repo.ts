@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import type Database from 'better-sqlite3'
+import { getSetting } from '../db/database'
 import type {
   AssetDTO, AssetStatus, BoardDTO, CardDTO, CardPatch, CardType, LinkDTO, TranscriptStatus, Viewport
 } from '../../shared/board-types'
@@ -18,20 +19,36 @@ export const DEFAULT_SIZE: Record<CardType, { w: number; h: number }> = {
   grup: { w: 600, h: 400 }
 }
 
-export interface BoardRow { id: string; name: string; viewport: Viewport | null }
+export interface BoardRow { id: string; projectId: string; name: string; viewport: Viewport | null }
+
+interface BoardDbRow { id: string; project_id: string; name: string; viewport_json: string | null }
+const toBoardRow = (r: BoardDbRow): BoardRow => ({
+  id: r.id, projectId: r.project_id, name: r.name, viewport: r.viewport_json ? JSON.parse(r.viewport_json) : null
+})
+
+export function getBoardRow(db: DB, id: string): BoardRow | null {
+  const r = db.prepare('SELECT id, project_id, name, viewport_json FROM boards WHERE id = ?').get(id) as BoardDbRow | undefined
+  return r ? toBoardRow(r) : null
+}
 
 export function getOrCreateDefaultBoard(db: DB): BoardRow {
-  const row = db.prepare('SELECT id, name, viewport_json FROM boards ORDER BY rowid LIMIT 1').get() as
-    | { id: string; name: string; viewport_json: string | null }
-    | undefined
-  if (row) return { id: row.id, name: row.name, viewport: row.viewport_json ? JSON.parse(row.viewport_json) : null }
+  const row = db.prepare('SELECT id, project_id, name, viewport_json FROM boards ORDER BY rowid LIMIT 1').get() as BoardDbRow | undefined
+  if (row) return toBoardRow(row)
   const projectId = newId()
   const boardId = newId()
   db.transaction(() => {
     db.prepare('INSERT INTO projects (id, name, icon, created_at, updated_at) VALUES (?, ?, NULL, ?, ?)').run(projectId, 'Proyek Pertama', now(), now())
     db.prepare('INSERT INTO boards (id, project_id, name, viewport_json, background) VALUES (?, ?, ?, NULL, NULL)').run(boardId, projectId, 'Board Utama')
   })()
-  return { id: boardId, name: 'Board Utama', viewport: null }
+  return { id: boardId, projectId, name: 'Board Utama', viewport: null }
+}
+
+export const ACTIVE_BOARD_KEY = 'board.active'
+
+/** Board yang sedang dibuka (settings `board.active`); bila tidak ada atau sudah hilang → board pertama. */
+export function getActiveBoard(db: DB): BoardRow {
+  const id = getSetting(db, ACTIVE_BOARD_KEY)
+  return (id ? getBoardRow(db, id) : null) ?? getOrCreateDefaultBoard(db)
 }
 
 // ---- Asset ----
@@ -189,18 +206,20 @@ export function deleteLink(db: DB, id: string): void {
 
 // ---- Board ----
 
-export function saveViewport(db: DB, v: Viewport): void {
-  const board = getOrCreateDefaultBoard(db)
+export function saveViewport(db: DB, v: Viewport, boardId?: string): void {
+  const board = boardId ? getBoardRow(db, boardId) : getActiveBoard(db)
+  if (!board) throw new Error('Board tidak ditemukan')
   db.prepare('UPDATE boards SET viewport_json = ? WHERE id = ?').run(JSON.stringify({ x: v.x, y: v.y, zoom: v.zoom }), board.id)
 }
 
-export function loadBoard(db: DB): BoardDTO {
-  const board = getOrCreateDefaultBoard(db)
+export function loadBoard(db: DB, boardId?: string): BoardDTO {
+  const board = boardId ? getBoardRow(db, boardId) : getActiveBoard(db)
+  if (!board) throw new Error('Board tidak ditemukan')
   const cards = (db.prepare('SELECT * FROM cards WHERE board_id = ? ORDER BY z, rowid').all(board.id) as CardRow[]).map((r) => cardToDTO(db, r))
   const links = (
     db
       .prepare('SELECT l.id, l.from_card_id, l.to_card_id, l.kind FROM links l JOIN cards c ON c.id = l.from_card_id WHERE c.board_id = ? ORDER BY l.rowid')
       .all(board.id) as { id: string; from_card_id: string; to_card_id: string; kind: string }[]
   ).map((r) => ({ id: r.id, fromId: r.from_card_id, toId: r.to_card_id, kind: r.kind }))
-  return { id: board.id, name: board.name, viewport: board.viewport, cards, links }
+  return { id: board.id, projectId: board.projectId, name: board.name, viewport: board.viewport, cards, links }
 }

@@ -8,7 +8,7 @@ import { resolveActiveThemeId } from './theme'
 import type { SidecarManager } from './sidecar'
 import type { IngestService } from './ingest/service'
 import type { CardPatch, Point, Viewport } from '../shared/board-types'
-import { createLink, deleteCards, deleteLink, getOrCreateDefaultBoard, insertCard, loadBoard, saveCards, saveViewport } from './board/repo'
+import { createLink, deleteCards, deleteLink, getActiveBoard, insertCard, loadBoard, saveCards, saveViewport } from './board/repo'
 import { searchAssets } from './search'
 import type { TranscriptModel } from './transcript-model'
 import type { FolderWatcher } from './ingest/watcher'
@@ -57,7 +57,7 @@ export function registerIpc(deps: IpcDeps): void {
   })
   ipcMain.handle('board:createNote', (_e, at: unknown) => {
     assert(isPoint(at))
-    return insertCard(db, { boardId: getOrCreateDefaultBoard(db).id, type: 'catatan', x: at.x, y: at.y, content: '' })
+    return insertCard(db, { boardId: getActiveBoard(db).id, type: 'catatan', x: at.x, y: at.y, content: '' })
   })
   ipcMain.handle('board:deleteCards', (_e, ids: unknown) => {
     assert(isStringArray(ids))

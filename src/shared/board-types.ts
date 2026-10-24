@@ -42,6 +42,7 @@ export interface LinkDTO { id: string; fromId: string; toId: string; kind: strin
 
 export interface BoardDTO {
   id: string
+  projectId: string
   name: string
   viewport: Viewport | null
   cards: CardDTO[]

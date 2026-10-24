@@ -15,7 +15,7 @@ import { createSidecarExtractor, createSidecarModelClient, createSidecarTranscri
 import { createTranscriptModel } from './transcript-model'
 import { createFolderWatcher, type FolderWatcher } from './ingest/watcher'
 import { downloadUrl } from './ingest/url'
-import { DEFAULT_SIZE, getOrCreateDefaultBoard, insertCard } from './board/repo'
+import { DEFAULT_SIZE, getActiveBoard, insertCard } from './board/repo'
 
 // Harus sebelum `ready`; foldernya dibuat dulu.
 if (process.env.ALFONSO_USER_DATA) {
@@ -141,7 +141,7 @@ async function bootstrap(): Promise<void> {
       importPaths: (paths: string[], at: { x: number; y: number }) => service.importPaths(paths, at),
       watchFolder: (dir: string) => folderWatcher.add(dir),
       fillBoard: (count: number) => {
-        const board = getOrCreateDefaultBoard(testDb)
+        const board = getActiveBoard(testDb)
         testDb.transaction(() => {
           for (let i = 0; i < count; i++) {
             insertCard(testDb, { boardId: board.id, type: 'catatan', x: (i % 100) * 260, y: Math.floor(i / 100) * 180, content: `Kartu ${i}`, ...DEFAULT_SIZE.catatan })

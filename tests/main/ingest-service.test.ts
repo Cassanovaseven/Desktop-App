@@ -226,3 +226,37 @@ test('metadata ekstraksi disimpan per asset; data internal ZIP dan status transk
   expect(loadBoard(t.db).cards.find((c) => c.id === card.id)?.asset?.meta).toEqual({ durasi: 125.4, lebar: 64 })
   await s.queue.stop()
 })
+
+test('Fase 2: drop, tempel teks, dan tempel gambar masuk ke board aktif', async () => {
+  const { createProject, setActiveBoard } = await import('../../src/main/projects/repo')
+  const { s } = service(async () => ({ text: '', meta: {}, thumb: null }))
+  const first = loadBoard(t.db).id
+  const p = createProject(t.db, 'Kedua')
+  setActiveBoard(t.db, p.boards[0].id)
+  const [a] = await s.importPaths([write('a.txt', 'a')], { x: 0, y: 0 })
+  const note = await s.pasteText('catatan', { x: 0, y: 0 })
+  const [img] = await s.pasteImage(new Uint8Array([137, 80, 78, 71]), 'image/png', { x: 0, y: 0 })
+  for (const c of [a, note, img]) expect(c.boardId).toBe(p.boards[0].id)
+  expect(loadBoard(t.db, first).cards).toEqual([])
+})
+
+test('Fase 2: isi ZIP masuk ke board kartu ZIP walau board aktif sudah pindah', async () => {
+  const { createProject, setActiveBoard } = await import('../../src/main/projects/repo')
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'alfonso-zip-'))
+  fs.writeFileSync(path.join(temp, 'c.txt'), 'isi c')
+  let release!: () => void
+  const gate = new Promise<void>((r) => { release = r })
+  const { s, events } = service(async (rel) => {
+    if (!rel.endsWith('.zip')) return { text: 'isi', meta: {}, thumb: null }
+    await gate
+    return { text: 'c.txt', meta: { entri: [{ name: 'c.txt', path: path.join(temp, 'c.txt') }], temp_dir: temp, ditolak: 0 }, thumb: null }
+  })
+  s.queue.start()
+  const [grup] = await s.importPaths([write('arsip.zip', 'PK')], { x: 0, y: 0 })
+  setActiveBoard(t.db, createProject(t.db, 'Lain').boards[0].id)
+  release()
+  await vi.waitFor(() => expect(events.some((e) => e.newCards.length > 0)).toBe(true))
+  const inner = events.find((e) => e.newCards.length > 0)!.newCards
+  expect(inner.map((c) => c.boardId)).toEqual([grup.boardId])
+  await s.queue.stop()
+})

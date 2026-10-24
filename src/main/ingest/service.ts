@@ -7,7 +7,7 @@ import type { VaultPaths } from '../../shared/types'
 import type { Logger } from '../logger'
 import { JobQueue } from '../jobs/queue'
 import { importAsset, importFiles, kindForFile, type ImportOptions } from './importer'
-import { cardsForAsset, getAsset, getCard, getOrCreateDefaultBoard, insertCard, DEFAULT_SIZE, MSG_NO_MODEL } from '../board/repo'
+import { cardsForAsset, getAsset, getCard, getActiveBoard, insertCard, DEFAULT_SIZE, MSG_NO_MODEL } from '../board/repo'
 import { indexAsset } from '../search'
 
 export interface ExtractResult {
@@ -85,7 +85,7 @@ export function createIngestService(o: IngestServiceOptions) {
       const grup = grupId ? getCard(db, grupId) : null
       if (!grup || entries.length === 0) return []
       const pad = 20
-      const cards = await importFiles(db, vault, entries.map((e) => e.path), { x: grup.x + pad, y: grup.y + 48 })
+      const cards = await importFiles(db, vault, entries.map((e) => e.path), { x: grup.x + pad, y: grup.y + 48 }, { boardId: grup.boardId })
       const style = JSON.stringify({ grupId: grup.id })
       const setStyle = db.prepare('UPDATE cards SET style_json = ? WHERE id = ?')
       for (const c of cards) setStyle.run(style, c.id)
@@ -228,7 +228,7 @@ export function createIngestService(o: IngestServiceOptions) {
       return cards
     },
     async pasteText(text: string, at: Point): Promise<CardDTO> {
-      const board = getOrCreateDefaultBoard(db)
+      const board = getActiveBoard(db)
       const trimmed = text.trim()
       if (URL_RE.test(trimmed)) {
         const card = insertCard(db, { boardId: board.id, type: 'tautan', x: at.x, y: at.y, content: trimmed })

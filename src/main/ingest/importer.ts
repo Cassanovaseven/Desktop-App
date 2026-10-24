@@ -4,12 +4,13 @@ import type Database from 'better-sqlite3'
 import type { CardDTO, CardType, Point } from '../../shared/board-types'
 import type { VaultPaths } from '../../shared/types'
 import { sha256File } from './hash'
-import { findAssetBySha, getOrCreateDefaultBoard, insertAsset, insertCard, DEFAULT_SIZE } from '../board/repo'
+import { findAssetBySha, getActiveBoard, insertAsset, insertCard, DEFAULT_SIZE } from '../board/repo'
 import { insertJob } from '../jobs/store'
 
 export const MSG_FOLDER = 'Folder belum didukung, drop file-nya saja.'
 
-export type Jenis = 'dokumen' | 'gambar' | 'kode' | 'arsip' | 'audio' | 'video' | 'lainnya'
+import type { Jenis } from '../../shared/library-types'
+export type { Jenis }
 
 const TYPES: Record<string, { jenis: Jenis; mime: string | null }> = {
   pdf: { jenis: 'dokumen', mime: 'application/pdf' },
@@ -73,6 +74,8 @@ export interface ImportOptions {
   skipKnown?: boolean
   /** Tag tambahan untuk asset baru, mis. sumber:folder. */
   tags?: string[]
+  /** Board tujuan; tanpa ini → board aktif. */
+  boardId?: string
 }
 
 /** Menyalin satu file ke vault (bila hash-nya belum ada) dan membuat asset + job ekstraksi, tanpa kartu. */
@@ -96,7 +99,7 @@ export async function importAsset(db: Database.Database, vault: VaultPaths, src:
 }
 
 export async function importFiles(db: Database.Database, vault: VaultPaths, paths: string[], at: Point, opts: ImportOptions = {}): Promise<CardDTO[]> {
-  const board = getOrCreateDefaultBoard(db)
+  const boardId = opts.boardId ?? getActiveBoard(db).id
   const files: string[] = []
   let folders = 0
   for (const p of paths) {
@@ -118,7 +121,7 @@ export async function importFiles(db: Database.Database, vault: VaultPaths, path
     i++
     cards.push(
       insertCard(db, {
-        boardId: board.id,
+        boardId,
         type: kind.tipeKartu,
         x: at.x + col * (DEFAULT_SIZE.file.w + 20),
         y: at.y + row * (DEFAULT_SIZE.gambar.h + 20),
