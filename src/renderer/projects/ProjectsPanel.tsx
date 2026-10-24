@@ -40,6 +40,13 @@ function NameInput(props: { label: string; initial: string; onSubmit: (name: str
   )
 }
 
+// Palette (Ctrl+K) membuka isian proyek/board baru lewat pengendali ini.
+let controller: { newProject(): void; newBoard(projectId: string): void } | null = null
+export const projectsController = {
+  newProject: (): void => controller?.newProject(),
+  newBoard: (projectId: string): void => controller?.newBoard(projectId)
+}
+
 export function ProjectsPanel(): React.JSX.Element {
   const api = window.alfonso.projects
   const activeBoardId = useWorkspace((s) => s.activeBoardId)
@@ -47,6 +54,16 @@ export function ProjectsPanel(): React.JSX.Element {
   const [projects, setProjects] = useState<ProjectDTO[] | null>(null)
   const [editing, setEditing] = useState<Editing>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    controller = {
+      newProject: () => setEditing({ kind: 'newProject' }),
+      newBoard: (projectId) => setEditing({ kind: 'newBoard', projectId })
+    }
+    return () => {
+      controller = null
+    }
+  }, [])
 
   const reload = useCallback(() => api.list().then(setProjects, (e: Error) => setError(e.message)), [api])
   useEffect(() => {

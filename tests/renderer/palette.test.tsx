@@ -14,11 +14,14 @@ let showMessage: ReturnType<typeof vi.fn<(m: string) => void>>
 let resetLayout: ReturnType<typeof vi.fn<() => void>>
 let addNote: ReturnType<typeof vi.fn<() => void>>
 let openSearch: ReturnType<typeof vi.fn<() => void>>
+type Fn = ReturnType<typeof vi.fn<() => void>>
+let nav: { openLibrary: Fn; searchLibrary: Fn; newProject: Fn; newBoard: Fn; switchBoard: Fn }
 let api: AlfonsoApi
 let cmds: Command[]
 
 beforeEach(() => {
   applyThemeById = vi.fn(); showMessage = vi.fn(); resetLayout = vi.fn(); addNote = vi.fn(); openSearch = vi.fn()
+  nav = { openLibrary: vi.fn(), searchLibrary: vi.fn(), newProject: vi.fn(), newBoard: vi.fn(), switchBoard: vi.fn() }
   api = {
     vault: { getPath: vi.fn(async () => 'C:/Vault'), openFolder: vi.fn(async () => {}) },
     theme: { list: vi.fn(async () => themes), getActiveId: vi.fn(async () => 'alfonso-gelap'), setActive: vi.fn(async () => {}) },
@@ -27,13 +30,13 @@ beforeEach(() => {
     watch: { add: vi.fn(async () => ({ message: 'Memantau folder: C:/Unduhan' })), remove: vi.fn(async () => ({ message: 'Tidak ada folder yang dipantau.' })) },
     transkrip: { downloadModel: vi.fn(async () => ({ state: 'siap' as const, model: 'small', message: 'Model transkrip siap.' })) }
   } as unknown as AlfonsoApi
-  cmds = buildCommands({ themes, api, resetLayout, showMessage, applyThemeById, addNote, openSearch })
+  cmds = buildCommands({ themes, api, resetLayout, showMessage, applyThemeById, addNote, openSearch, ...nav })
 })
 afterEach(() => cleanup())
 
 test('daftar perintah lengkap', () => {
-  expect(cmds.map(c => c.id)).toEqual(['board.addNote', 'search.files', 'theme.switch:alfonso-gelap', 'theme.switch:alfonso-terang', 'vault.open', 'sidecar.status', 'transkrip.download', 'watch.add', 'watch.remove', 'layout.reset'])
-  expect(cmds[3].label).toBe('Ganti tema: Alfonso Terang')
+  expect(cmds.map(c => c.id)).toEqual(['board.addNote', 'search.files', 'library.open', 'library.search', 'project.new', 'board.new', 'board.switch', 'theme.switch:alfonso-gelap', 'theme.switch:alfonso-terang', 'vault.open', 'sidecar.status', 'transkrip.download', 'watch.add', 'watch.remove', 'layout.reset'])
+  expect(cmds.find(c => c.id === 'theme.switch:alfonso-terang')!.label).toBe('Ganti tema: Alfonso Terang')
 })
 test('filter tidak peka huruf dan per kata', () => {
   const r = filterCommands(cmds, 'tema TERANG')
@@ -80,4 +83,12 @@ test('Pantau folder dan berhenti memantau menampilkan hasil dari proses utama', 
   await cmds.find(c => c.id === 'watch.add')!.run()
   await cmds.find(c => c.id === 'watch.remove')!.run()
   expect(showMessage.mock.calls.map(c => c[0])).toEqual(['Memantau folder: C:/Unduhan', 'Tidak ada folder yang dipantau.'])
+})
+
+test('Fase 2: perintah Library, proyek, dan board', async () => {
+  const label = (id: string) => cmds.find(c => c.id === id)!.label
+  expect([label('library.open'), label('library.search'), label('project.new'), label('board.new'), label('board.switch')])
+    .toEqual(['Buka Library', 'Cari di Library…', 'Proyek baru…', 'Board baru…', 'Pindah ke board…'])
+  for (const id of ['library.open', 'library.search', 'project.new', 'board.new', 'board.switch']) await cmds.find(c => c.id === id)!.run()
+  for (const fn of Object.values(nav)) expect(fn).toHaveBeenCalledTimes(1)
 })

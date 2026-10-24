@@ -50,6 +50,14 @@ function ItemView(props: { item: LibraryItem; selected: boolean; list: boolean }
   )
 }
 
+let searchInput: HTMLInputElement | null = null
+export const libraryController = {
+  focusSearch: (): void => {
+    searchInput?.focus()
+    searchInput?.select()
+  }
+}
+
 export function LibraryPanel(): React.JSX.Element {
   const api = window.alfonso
   const projectId = useWorkspace((s) => s.activeProjectId)
@@ -178,7 +186,12 @@ export function LibraryPanel(): React.JSX.Element {
   return (
     <div className="library-panel">
       <div className="library-toolbar">
-        <input className="library-search" aria-label="Cari di Library" placeholder="Cari nama, tag, atau isi file…" value={text} onChange={(e) => setText(e.target.value)} />
+        <input
+          ref={(el) => {
+            searchInput = el
+          }}
+          className="library-search"
+          aria-label="Cari di Library" placeholder="Cari nama, tag, atau isi file…" value={text} onChange={(e) => setText(e.target.value)} />
         <div className="library-row">
           <select aria-label="Cakupan" value={scope} onChange={(e) => setScope(e.target.value as LibraryScope)}>
             {(Object.keys(SCOPE_LABEL) as LibraryScope[]).map((s) => (

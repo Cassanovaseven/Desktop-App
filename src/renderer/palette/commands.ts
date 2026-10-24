@@ -15,12 +15,22 @@ export interface CommandContext {
   applyThemeById(id: string): void
   addNote(): void
   openSearch(): void
+  openLibrary(): void
+  searchLibrary(): void
+  newProject(): void
+  newBoard(): void
+  switchBoard(): void
 }
 
 export function buildCommands(ctx: CommandContext): Command[] {
   return [
     { id: 'board.addNote', label: 'Tambah catatan', run: () => ctx.addNote() },
     { id: 'search.files', label: 'Cari isi file…', run: () => ctx.openSearch() },
+    { id: 'library.open', label: 'Buka Library', run: () => ctx.openLibrary() },
+    { id: 'library.search', label: 'Cari di Library…', run: () => ctx.searchLibrary() },
+    { id: 'project.new', label: 'Proyek baru…', run: () => ctx.newProject() },
+    { id: 'board.new', label: 'Board baru…', run: () => ctx.newBoard() },
+    { id: 'board.switch', label: 'Pindah ke board…', run: () => ctx.switchBoard() },
     ...ctx.themes.map((t) => ({
       id: `theme.switch:${t.id}`,
       label: `Ganti tema: ${t.name}`,

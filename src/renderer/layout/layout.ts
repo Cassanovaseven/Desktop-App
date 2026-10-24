@@ -4,16 +4,17 @@ import type { SidecarStatus } from '../../shared/types'
 export interface PanelDef {
   id: string
   title: string
-  component: 'placeholder' | 'queue' | 'board'
+  component: 'placeholder' | 'queue' | 'board' | 'projects' | 'library' | 'inspector'
   placeholder?: string
 }
 
 export const PANELS: PanelDef[] = [
-  { id: 'explorer', title: 'Proyek', component: 'placeholder', placeholder: 'Segera hadir — Fase 2' },
+  { id: 'explorer', title: 'Proyek', component: 'projects' },
+  { id: 'library', title: 'Library', component: 'library' },
   { id: 'board', title: 'Board', component: 'board' },
   { id: 'studio', title: 'Studio', component: 'placeholder', placeholder: 'Segera hadir — Fase 3' },
   { id: 'deck', title: 'Deck', component: 'placeholder', placeholder: 'Segera hadir — Fase 4' },
-  { id: 'inspector', title: 'Inspector', component: 'placeholder', placeholder: 'Segera hadir — Fase 1' },
+  { id: 'inspector', title: 'Inspector', component: 'inspector' },
   { id: 'queue', title: 'Antrean & Log', component: 'queue' }
 ]
 
@@ -30,14 +31,24 @@ export function buildDefaultLayout(api: DockviewApi): void {
   add(api, 'studio', { referencePanel: 'board', direction: 'within' }, true)
   add(api, 'deck', { referencePanel: 'board', direction: 'within' }, true)
   add(api, 'explorer', { referencePanel: 'board', direction: 'left' })
+  add(api, 'library', { referencePanel: 'explorer', direction: 'within' })
   add(api, 'inspector', { referencePanel: 'board', direction: 'right' })
   add(api, 'queue', { referencePanel: 'board', direction: 'below' })
+}
+
+/** Tata letak tersimpan dari fase sebelumnya: panel baru (Library) ditambahkan; susunan lain tidak diubah. */
+export function ensurePanels(api: DockviewApi): void {
+  if (api.getPanel('library')) return
+  if (api.getPanel('explorer')) add(api, 'library', { referencePanel: 'explorer', direction: 'within' })
+  else if (api.getPanel('board')) add(api, 'library', { referencePanel: 'board', direction: 'left' })
+  else add(api, 'library')
 }
 
 export function restoreLayout(api: DockviewApi, saved: string | null, log: (m: string) => void): 'restored' | 'default' {
   if (saved) {
     try {
       api.fromJSON(JSON.parse(saved))
+      ensurePanels(api)
       return 'restored'
     } catch (err) {
       log(`Tata letak tersimpan rusak, memakai default: ${(err as Error).message}`)
