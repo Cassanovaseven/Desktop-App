@@ -28,7 +28,7 @@ function AssetStatus({ asset }: { asset: AssetDTO }): React.JSX.Element | null {
   return null
 }
 
-const TRANSKRIP_LABEL: Record<NonNullable<AssetDTO['transkrip']>, string> = {
+export const TRANSKRIP_LABEL: Record<NonNullable<AssetDTO['transkrip']>, string> = {
   memproses: 'Mentranskrip…',
   selesai: 'Transkrip siap',
   belum: 'Transkrip belum tersedia. Ctrl+K → Unduh model transkrip…',

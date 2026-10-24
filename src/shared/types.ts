@@ -50,6 +50,8 @@ export interface AlfonsoApi {
     open(boardId?: string): Promise<BoardDTO>;
     /** Kartu baru di board aktif yang menunjuk ke aset yang sudah ada (tanpa menyalin file). */
     addAssetCard(assetId: string, at: Point): Promise<CardDTO>;
+    /** Board dan proyek tempat sebuah kartu berada (null bila sudah dihapus). */
+    locate(cardId: string): Promise<{ boardId: string; projectId: string } | null>;
     saveCards(patches: CardPatch[]): Promise<void>;
     createNote(at: Point): Promise<CardDTO>;
     deleteCards(ids: string[]): Promise<void>;

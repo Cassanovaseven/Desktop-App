@@ -8,7 +8,7 @@ import { resolveActiveThemeId } from './theme'
 import type { SidecarManager } from './sidecar'
 import type { IngestService } from './ingest/service'
 import type { CardPatch, Point, Viewport } from '../shared/board-types'
-import { createLink, deleteCards, deleteLink, getActiveBoard, insertCard, loadBoard, saveCards, saveViewport } from './board/repo'
+import { createLink, deleteCards, deleteLink, getActiveBoard, insertCard, loadBoard, locateCard, saveCards, saveViewport } from './board/repo'
 import { searchAssets } from './search'
 import { createBoard, createProject, listProjects, renameBoard, renameProject, setActiveBoard } from './projects/repo'
 import { listAssets, parseLibraryQuery } from './library/query'
@@ -101,6 +101,10 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('board:open', (_e, boardId: unknown) => {
     assert(boardId === undefined || typeof boardId === 'string')
     return loadBoard(db, boardId)
+  })
+  ipcMain.handle('board:locate', (_e, cardId: unknown) => {
+    assert(typeof cardId === 'string')
+    return locateCard(db, cardId)
   })
   ipcMain.handle('board:addAssetCard', (_e, assetId: unknown, at: unknown) => {
     assert(typeof assetId === 'string' && isPoint(at))

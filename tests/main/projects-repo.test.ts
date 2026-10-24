@@ -83,3 +83,11 @@ test('loadBoard dan saveViewport hanya menyentuh board yang diminta', () => {
   expect(loadBoard(t.db).id).toBe(second.id)
   expect(loadBoard(t.db).name).toBe('Board Utama')
 })
+
+test('locateCard: board dan proyek sebuah kartu', async () => {
+  const { locateCard } = await import('../../src/main/board/repo')
+  const p = createProject(t.db, 'Dua')
+  const c = insertCard(t.db, { boardId: p.boards[0].id, type: 'catatan', x: 0, y: 0 })
+  expect(locateCard(t.db, c.id)).toEqual({ boardId: p.boards[0].id, projectId: p.id })
+  expect(locateCard(t.db, 'tidak-ada')).toBeNull()
+})

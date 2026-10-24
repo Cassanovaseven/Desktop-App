@@ -46,6 +46,7 @@ const api: AlfonsoApi = {
   board: {
     open: (boardId) => ipcRenderer.invoke('board:open', boardId),
     addAssetCard: (assetId, at) => ipcRenderer.invoke('board:addAssetCard', assetId, at),
+    locate: (cardId) => ipcRenderer.invoke('board:locate', cardId),
     saveCards: (patches) => ipcRenderer.invoke('board:saveCards', patches),
     createNote: (at) => ipcRenderer.invoke('board:createNote', at),
     deleteCards: (ids) => ipcRenderer.invoke('board:deleteCards', ids),

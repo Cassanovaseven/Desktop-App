@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ProjectDTO } from '../../shared/library-types'
 import { useWorkspace, workspace } from '../workspace'
+import { openBoard } from '../navigation'
 
 type Editing =
   | { kind: 'newProject' }
@@ -14,12 +15,6 @@ const LABEL: Record<NonNullable<Editing>['kind'], string> = {
   newBoard: 'Nama board baru',
   renameProject: 'Ganti nama proyek',
   renameBoard: 'Ganti nama board'
-}
-
-/** Pindah board: disimpan di proses utama dulu, baru Board di layar ikut pindah. */
-export async function openBoard(boardId: string, projectId: string): Promise<void> {
-  await window.alfonso.projects.setActiveBoard(boardId)
-  workspace.setActiveBoard(boardId, projectId)
 }
 
 function NameInput(props: { label: string; initial: string; onSubmit: (name: string) => void; onCancel: () => void }): React.JSX.Element {

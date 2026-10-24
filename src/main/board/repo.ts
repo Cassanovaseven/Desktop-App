@@ -224,3 +224,10 @@ export function loadBoard(db: DB, boardId?: string): BoardDTO {
   ).map((r) => ({ id: r.id, fromId: r.from_card_id, toId: r.to_card_id, kind: r.kind }))
   return { id: board.id, projectId: board.projectId, name: board.name, viewport: board.viewport, cards, links }
 }
+
+export function locateCard(db: DB, cardId: string): { boardId: string; projectId: string } | null {
+  const r = db.prepare('SELECT b.id AS board_id, b.project_id FROM cards c JOIN boards b ON b.id = c.board_id WHERE c.id = ?').get(cardId) as
+    | { board_id: string; project_id: string }
+    | undefined
+  return r ? { boardId: r.board_id, projectId: r.project_id } : null
+}
