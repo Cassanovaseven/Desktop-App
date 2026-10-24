@@ -43,3 +43,21 @@ test('nama file juga dicari', () => {
   asset('Anggaran 2026.xlsx', 'angka')
   expect(searchAssets(t.db, 'anggaran')).toHaveLength(1)
 })
+
+test('Fase 2: baris FTS memakai rowid aset (hapus/ganti tanpa memindai seluruh indeks)', async () => {
+  const { insertAsset } = await import('../../src/main/board/repo')
+  const { alignFtsRowids } = await import('../../src/main/search')
+  const a = insertAsset(t.db, { sha256: '1'.repeat(64), vaultPath: 'files/11/a.txt', originalName: 'a.txt', mime: 'text/plain', sizeBytes: 1 })
+  indexAsset(t.db, a.id, 'satu', [], 'siap')
+  indexAsset(t.db, a.id, 'dua', [], 'siap')
+  const assetRowid = (t.db.prepare('SELECT rowid AS r FROM assets WHERE id = ?').get(a.id) as { r: number }).r
+  expect(t.db.prepare('SELECT rowid AS r, extracted_text FROM assets_fts').all()).toEqual([{ r: assetRowid, extracted_text: 'dua' }])
+  // Baris lama dari Fase 1 (rowid acak) diselaraskan sekali saat aplikasi dibuka.
+  t.db.prepare('DELETE FROM assets_fts').run()
+  t.db.prepare('INSERT INTO assets_fts (rowid, asset_id, original_name, tags, extracted_text) VALUES (999, ?, ?, ?, ?)').run(a.id, 'a.txt', 'x', 'lama')
+  t.db.prepare('INSERT INTO assets_fts (rowid, asset_id, original_name, tags, extracted_text) VALUES (998, ?, ?, ?, ?)').run('yatim', 'y.txt', '', 'yatim')
+  expect(alignFtsRowids(t.db)).toBe(1)
+  expect(alignFtsRowids(t.db)).toBe(0)
+  expect(t.db.prepare('SELECT rowid AS r, asset_id, extracted_text FROM assets_fts').all()).toEqual([{ r: assetRowid, asset_id: a.id, extracted_text: 'lama' }])
+  expect(searchAssets(t.db, 'lama').map((h) => h.assetId)).toEqual([a.id])
+})

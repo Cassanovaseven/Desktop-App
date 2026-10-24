@@ -6,6 +6,7 @@ import type { VaultPaths } from '../../shared/types'
 import { sha256File } from './hash'
 import { findAssetBySha, getActiveBoard, insertAsset, insertCard, DEFAULT_SIZE } from '../board/repo'
 import { insertJob } from '../jobs/store'
+import { writeFtsRow } from '../search'
 
 export const MSG_FOLDER = 'Folder belum didukung, drop file-nya saja.'
 
@@ -92,7 +93,10 @@ export async function importAsset(db: Database.Database, vault: VaultPaths, src:
     if (again) return { assetId: again.id, created: false }
     const asset = insertAsset(db, { sha256: sha, vaultPath, originalName: path.basename(src), mime: kind.mime, sizeBytes: size })
     const tag = db.prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag) VALUES (?, ?)')
-    for (const t of opts.tags ?? []) tag.run(asset.id, t)
+    // Tag jenis/jalur sejak impor supaya aset yang masih diproses sudah bisa disaring dan dicari namanya di Library.
+    const tags = [`jenis:${kind.jenis}`, 'jalur:impor', ...(opts.tags ?? [])]
+    for (const t of tags) tag.run(asset.id, t)
+    writeFtsRow(db, asset.id, asset.originalName, [...new Set(tags)].join(' '), '')
     insertJob(db, 'ekstrak', { assetId: asset.id })
     return { assetId: asset.id, created: true }
   })()

@@ -6,6 +6,8 @@ import { secureWindowOptions } from './window'
 import { resolveVaultPath } from './vault'
 import { createLogger } from './logger'
 import { openDatabase } from './db/database'
+import { alignFtsRowids } from './search'
+import { ensureAutoTags } from './library/tags'
 import { loadThemes } from './theme'
 import { SidecarManager, findPython } from './sidecar'
 import { registerIpc } from './ipc'
@@ -71,6 +73,10 @@ async function bootstrap(): Promise<void> {
   const log = createLogger(vault.logs, () => (manager ? [manager.token] : []))
   log.info('Alfonso mulai')
   db = openDatabase(vault.db)
+  // Penyesuaian data Fase 1 → 2 (tanpa ubah skema): rowid indeks pencarian dan tag jenis/jalur yang belum ada.
+  const ftsMoved = alignFtsRowids(db)
+  const tagged = ensureAutoTags(db)
+  if (ftsMoved || tagged) log.info(`Library disiapkan: ${ftsMoved} indeks diselaraskan, ${tagged} aset diberi tag otomatis`)
   const themes = loadThemes(vault.mods, log)
   manager = new SidecarManager({
     command: findPython(appRoot),

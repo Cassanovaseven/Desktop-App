@@ -95,7 +95,8 @@ function assetToDTO(db: DB, r: AssetRow): AssetDTO {
     status: r.extract_status,
     previewUrl,
     error: r.extract_status === 'gagal' ? lastError(db, r.id) : null,
-    transkrip: transcriptStatus(db, r.id),
+    // Hanya audio/video yang punya job transkrip; aset lain tidak perlu memindai tabel jobs.
+    transkrip: r.mime && /^(audio|video)\//.test(r.mime) ? transcriptStatus(db, r.id) : null,
     meta: r.meta_json ? JSON.parse(r.meta_json) : null
   }
 }

@@ -82,3 +82,12 @@ test('video mendapat kartu setinggi kartu gambar supaya frame kuncinya terlihat'
   const [v] = await importFiles(t.db, t.vault, [write('rapat.mp4', 'vid')], { x: 0, y: 0 })
   expect(v).toMatchObject({ type: 'file', h: 200 })
 })
+
+test('Fase 2: aset baru langsung punya tag jenis/jalur dan namanya bisa dicari sebelum ekstraksi', async () => {
+  const { searchAssets } = await import('../../src/main/search')
+  const p = path.join(t.base, 'rekaman rapat.mp3')
+  fs.writeFileSync(p, 'ID3')
+  const [card] = await importFiles(t.db, t.vault, [p], { x: 0, y: 0 })
+  expect(t.db.prepare('SELECT tag FROM asset_tags WHERE asset_id = ? ORDER BY tag').all(card.assetId)).toEqual([{ tag: 'jalur:impor' }, { tag: 'jenis:audio' }])
+  expect(searchAssets(t.db, 'rapat').map((h) => h.assetId)).toEqual([card.assetId])
+})
